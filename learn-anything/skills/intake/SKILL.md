@@ -49,3 +49,13 @@ self-rating: intermediate (ladder says novice)
 Skipped ladder: the evidence is `none (ladder skipped; level assumed)` and `assumed: [level]`.
 
 `core` entries are the exact names every later skill matches on. `sources` entries are paths, URLs, or the literal `topic`.
+
+## Amend mode
+
+Invoked only by the conductor from the plan gate, with the lesson folder and the learner's change. Input says "amend".
+
+1. **Refuse once anything has run.** Read `./learn-anything/<slug>/plan.md`: if any unit's `status:` is not `pending`, change nothing and reply that a change now starts a new lesson with a full intake (nothing seeded).
+2. **Edit `brief.md` in place**, only the touched fields (`depth`, `budget`, `modes`, `sources`, `level` with its evidence, or `core` if the learner names it); never rewrite the file or re-ask settled fields. A topic change is not an amend: reply that it starts a new lesson.
+3. A new mode re-runs preflight (step 7) and annotates as before. Added or removed `sources` are validated as in step 3 and only edit the field; the conductor re-ingests.
+4. **A claim of a higher level** resumes the ladder where evidence stopped: from the first rung not yet asked, or re-ask the rung that was graded `missed` (new wording) when the ladder stopped there; if the ladder was skipped, from rung 1 and drop `level` from `assumed`. Grade and stop as in `ladder.md`, edit those evidence lines in place (replacing the `missed` line or the `none (...)` line, appending new ones), recompute `level` from all `solid` rungs, and update the `(ladder says ...)` part of the self-rating line. A complete ladder has nothing to resume: keep the level and say so. A claim never sets `level` without evidence.
+5. Reply with one line listing the fields changed. Do not write `plan.md`.

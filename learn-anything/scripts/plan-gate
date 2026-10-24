@@ -1,0 +1,62 @@
+#!/bin/sh
+# plan-gate <lesson-dir>: print the plan gate (one line per unit, totals, failed sources, outbound
+# links) and the verdict from plan.md. POSIX sh + awk. Last line: `gate: skip|show|refuse ...`.
+# Exit 0 always except no plan (2). Download size is the sum of preflight.md's missing pieces
+# tagged (tier K) with K at most the plan's highest tier: approximate, for the consent prompt.
+d=${1:?usage: plan-gate <lesson-dir>}
+p=$d/plan.md
+[ -f "$p" ] || { echo "plan-gate: no plan.md in $d" >&2; exit 2; }
+
+out=$(awk '
+function flush() {
+  if (id == "") return
+  printf "%s | %s | %s | %s | tier %s", id, mode, (rend == "" ? "-" : rend), size, tier
+  if (pred != "") printf " | predicted: %s", pred
+  if (down != "") printf " | downgraded: %s", down
+  print ""
+  n++; if (tier + 0 > top) top = tier + 0
+  if (mode == "video") vm += size + 0
+}
+/^## u[0-9]+$/ { flush(); id = $2; mode = rend = size = tier = pred = down = ""; next }
+id == "" && /^over-cap:/ { sub(/^over-cap:[ \t]*/, ""); over = $0; next }
+id != "" && /^[a-z]+:/ {
+  k = $1; sub(/:$/, "", k); v = $0; sub(/^[a-z]+:[ \t]*/, "", v)
+  if (k == "mode") mode = v; else if (k == "renderer") rend = v; else if (k == "size") size = v
+  else if (k == "tier") tier = v; else if (k == "predicted") pred = v; else if (k == "downgraded") down = v
+}
+END { flush(); print "TOTALS " n + 0 " " top + 0 " " vm + 0 " " (over == "" ? "-" : over) }
+' "$p")
+
+units=$(printf '%s\n' "$out" | grep -v '^TOTALS ')
+set -- $(printf '%s\n' "$out" | sed -n 's/^TOTALS \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2 \3/p')
+n=$1 top=$2 vm=$3
+marked=$(printf '%s\n' "$out" | sed -n 's/^TOTALS [0-9]* [0-9]* [0-9]* //p')
+
+dl=0
+if [ -f "$d/preflight.md" ]; then
+  dl=$(sed -n 's/^- .*(tier \([0-9]\)).*(~\([0-9][0-9]*\) MB.*/\1 \2/p' "$d/preflight.md" |
+    awk -v top="$top" '$1 + 0 <= top + 0 { s += $2 } END { print s + 0 }')
+fi
+
+failed=""; links=""
+for i in "$d"/sources/*/index.md; do
+  [ -f "$i" ] || continue
+  id=$(basename "$(dirname "$i")")
+  fm=$(sed -n '2,/^---$/p' "$i")
+  printf '%s\n' "$fm" | grep -q '^status:[[:space:]]*failed' && failed="$failed $id"
+  l=$(printf '%s\n' "$fm" | sed -n 's/^links:[[:space:]]*//p' | head -n 1)
+  case $l in ''|'[]') ;; *) links="$links$id: $l; ";; esac
+done
+
+[ -z "$units" ] || printf '%s\n' "$units"
+subs=0; [ "$n" -gt 1 ] && subs=$n
+echo "totals: units=$n subagents=$subs video_min=$vm highest_tier=$top download=~$dl MB failed_sources=$(echo $failed | wc -w | tr -d ' ')${failed:+ ($(echo $failed))}"
+[ -z "$links" ] || echo "links: ${links%; }"
+
+why=""
+[ "$n" -gt 8 ] && why="$n units, cap 8"
+[ "$vm" -gt 5 ] && why="${why:+$why; }$vm video minutes, cap 5"
+[ -z "$why" ] && [ "$marked" != - ] && why="router marked it: $marked"
+if [ -n "$why" ]; then echo "gate: refuse ($why)"
+elif [ "$n" -eq 1 ] && [ "$top" -eq 0 ]; then echo "gate: skip"
+else echo "gate: show"; fi

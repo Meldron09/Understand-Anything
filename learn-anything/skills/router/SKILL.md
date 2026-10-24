@@ -7,15 +7,16 @@ compatibility: shasum.
 
 # router
 
-Turn `brief.md` and each source's `index.md` into the content of `plan.md`. Read only those (never chunk text, never a full source). Write `./learn-anything/<slug>/plan.md` as the conductor's delegate, once, when it does not exist yet; afterwards the conductor is its only writer.
+Turn `brief.md` and each source's `index.md` into the content of `plan.md`. Read only those (never chunk text, never a full source). Write `./learn-anything/<slug>/plan.md` as the conductor's delegate, when it does not exist yet or when the conductor re-invokes you (a plan-gate adjustment or amend); a `note:` in the input is the learner's change (slicing, size, renderer) and wins over your defaults. Overwrite the whole file then. At any other time the conductor is its only writer.
 
 ## Tracer scope
 
-Not built yet: other modes, renderers and `renderers.md`, tier prediction, caps and over-cap marking, multi-unit slicing, preflight. Plan exactly one text unit, whose slices may come from several sources.
+Not built yet: other modes, renderers and `renderers.md`, tier prediction, multi-unit slicing, preflight. Plan exactly one text unit, whose slices may come from several sources.
 
 ## Rules
 
 - **Mode is binding.** Every mode in `brief.modes` gets a unit; never add or drop one. A mode other than `text` is not supported yet: stop and tell the conductor.
+- **Caps.** At most 8 units and 5 video minutes. Never shrink, merge or drop to fit: write the plan as sized and add frontmatter `over-cap: <units/minutes, one line>`; the conductor refuses it until the learner cuts.
 - **Sizing.** `planned` = 90% of `budget` in minutes (the rest is the check). Text rate is 200 words per minute, so `size` = `budget` x 180 words.
 - **Sources.** Read every `sources/sN/index.md`; ignore one whose `status` is `failed` (it has no chunks, and the conductor reports it). Never read chunk text.
 - **Slices.** Name them from the chunk entries and their summaries (`s1#c01`, a contiguous run `s1#c01-c02` within one source). A unit lists slices from every source that covers its `focus`, as one list: `slices: [s1#c01-c02, s2#c04]`. Pick the fewest chunks that cover every `core:` concept, about 20000 tokens at most (the entries' token estimates). `focus` is one sentence covering every `core:` concept.
