@@ -1,0 +1,121 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+"""chunk <text-file> <source-dir> --kind file|url --origin <path-or-url> [--hash-of <file>] [--links <file>]
+
+Cut a Markdown/text/code file into chunks and write <source-dir>/index.md plus
+<source-dir>/chunks/cNN.(md|txt). Markdown is cut by headings, anything else into windows of
+about 2.5k tokens (tokens = chars / 4). Each chunk entry in index.md is followed by a line
+`SUMMARY` for the caller to replace with a summary of at most 25 words. Stdlib only, so it also
+runs with plain `python3`. Exit 1 (message on stderr) when the file is empty or not text.
+"""
+import argparse, hashlib, re, sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+WINDOW = 10000   # chars, about 2.5k tokens
+MIN_SECTION = 600  # chars: a heading section shorter than this joins the next one
+FENCE = re.compile(r"^\s*(```|~~~)")
+HEAD = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+
+
+def windows(lines, first=1):
+    """Yield (start_line, end_line, text) windows cut at blank lines, hard-cut if a run is too long."""
+    buf, size, start = [], 0, first
+    for i, line in enumerate(lines, first):
+        if buf and size + len(line) > WINDOW and (not line.strip() or size > WINDOW * 1.3):
+            yield start, i - 1, "".join(buf)
+            buf, size, start = [], 0, i
+        buf.append(line)
+        size += len(line)
+    if buf:
+        yield start, first + len(lines) - 1, "".join(buf)
+
+
+def by_headings(lines):
+    """Return [(title, path, text)] cut at headings outside code fences."""
+    secs, path, cur, fence = [], [], None, False
+    for line in lines:
+        m = None if fence else HEAD.match(line)
+        if FENCE.match(line):
+            fence = not fence
+        if m:
+            level = len(m.group(1))
+            path = path[: level - 1] + [""] * max(0, level - 1 - len(path)) + [m.group(2)]
+            cur = [m.group(2), " > ".join(p for p in path if p), [line]]
+            secs.append(cur)
+        else:
+            if cur is None:
+                cur = ["Preamble", "Preamble", []]
+                secs.append(cur)
+            cur[2].append(line)
+    merged = []  # ponytail: forward-merge small sections only; a trailing small one stays alone
+    carry = None
+    for title, p, ls in secs:
+        text = "".join(ls)
+        if carry:
+            title, p, text = carry[0], carry[1], carry[2] + text
+            carry = None
+        if len(text) < MIN_SECTION:
+            carry = (title, p, text)
+        else:
+            merged.append((title, p, text))
+    if carry:
+        merged.append(carry)
+    out = []
+    for title, p, text in merged:  # a long section is cut into windows, keeping its heading path
+        if len(text) <= WINDOW * 1.3:
+            out.append((title, p, text))
+        else:
+            for n, (a, b, t) in enumerate(windows(text.splitlines(True)), 1):
+                out.append((f"{title} (part {n})", p, t))
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("text"), ap.add_argument("dest")
+    ap.add_argument("--kind", required=True), ap.add_argument("--origin", required=True)
+    ap.add_argument("--hash-of"), ap.add_argument("--links")
+    a = ap.parse_args()
+    raw = Path(a.text).read_bytes()
+    if b"\0" in raw[:4096]:
+        sys.exit("not a text file")
+    text = raw.decode("utf-8", errors="replace")
+    if not text.strip():
+        sys.exit("empty file")
+    lines = text.splitlines(True)
+    if Path(a.text).suffix.lower() in (".md", ".markdown") or a.kind == "url":
+        chunks, how, ext = by_headings(lines), "headings", "md"
+        if len(chunks) < 2 and len(text) > WINDOW * 1.3:  # no usable headings
+            how = "window"
+    else:
+        how = "window"
+    if how == "window":
+        ext = "txt"
+        chunks = [(f"Lines {s}-{e}", f"lines {s}-{e}", t) for s, e, t in windows(lines)]
+        if len(chunks) == 1:
+            chunks = [(Path(a.origin).name or a.origin, f"lines 1-{len(lines)}", text)]
+    dest = Path(a.dest)
+    (dest / "chunks").mkdir(parents=True, exist_ok=True)
+    width = max(2, len(str(len(chunks))))
+    entries, total = [], 0
+    for n, (title, origin, t) in enumerate(chunks, 1):
+        cid = f"c{n:0{width}d}"
+        (dest / "chunks" / f"{cid}.{ext}").write_text(t, encoding="utf-8")
+        tok = len(t) // 4
+        total += tok
+        entries.append(f"{cid} | {title.replace('|', '/')} | {origin.replace('|', '/')} | {tok} | chunks/{cid}.{ext}\nSUMMARY")
+    h = hashlib.sha256(Path(a.hash_of or a.text).read_bytes()).hexdigest()
+    links = Path(a.links).read_text().split() if a.links else []
+    front = ["---", f"kind: {a.kind}", f"origin: {a.origin}", f"hash: sha256:{h}",
+             f"fetched: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}", "grounded: true",
+             f"tokens: {total}", f"chunking: {how}", "status: ok", f"links: [{', '.join(links)}]", "---"]
+    (dest / "index.md").write_text("\n".join(front + entries) + "\n", encoding="utf-8")
+    print(f"{len(chunks)} chunks, {total} tokens, chunking {how}")
+
+
+if __name__ == "__main__":
+    main()
