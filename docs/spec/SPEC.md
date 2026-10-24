@@ -140,11 +140,11 @@ Two seams, no more (see the spec issue for the full testing decisions). **Seam 1
 
 ## 9. Unknowns to verify at build time
 
-- A subagent can invoke a `user-invocable: false` skill (unverified in the plugin-constraints research); if not, add one `agents/learn-unit.md` that preloads the mode skill.
+- ~~A subagent can invoke a `user-invocable: false` skill.~~ Verified (ticket 33, Claude Code 2.1.310): a general-purpose subagent invoked a hidden skill through the Skill tool; no `agents/learn-unit.md` is needed, so v1 has no plugin agent.
 - Marp: math on by default in the CLI, Mermaid on by default, KaTeX fonts offline (three flags in `marp.md`).
 - Render time and cost per minute of output for both renderers, scene parallelism, the 20 s scene length, the blank-scene threshold: a Mac spike.
 - HyperFrames exact version to pin; GSAP licence terms; ffmpeg `subtitles` filter availability (Homebrew ffmpeg lacks libass).
-- Whether `${CLAUDE_PLUGIN_ROOT}` substitution reaches a subagent that loads the skill (expected, per the research).
+- ~~Whether `${CLAUDE_PLUGIN_ROOT}` substitution reaches a subagent that loads the skill.~~ Verified (ticket 33): `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_SKILL_DIR}` were all substituted in the text the subagent received. Only tested with `--plugin-dir`; recheck once after a marketplace install.
 
 ## 10. Decision log
 
