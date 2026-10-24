@@ -1,0 +1,81 @@
+#!/bin/sh
+# preflight [lesson-folder]: report dependency tiers and capability probes (docs/spec/shared.md).
+# Prints compact JSON to stdout; with a folder, also writes <folder>/preflight.md (install command
+# and download size per missing piece). Never installs anything; exits 0 even when pieces are missing.
+# POSIX sh using only command -v, grep, sed. Probes search PATH only, except Chrome app bundles:
+# PREFLIGHT_CHROME_APPS (colon-separated paths) overrides the macOS defaults; "" disables them.
+dir=${1:-}
+apps=${PREFLIGHT_CHROME_APPS-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome:/Applications/Chromium.app/Contents/MacOS/Chromium"}
+
+have() { command -v "$1" >/dev/null 2>&1; }
+yn() { if "$@" >/dev/null 2>&1; then echo true; else echo false; fi; }
+
+uv=$(yn have uv); ffmpeg=$(yn have ffmpeg); pkgconfig=$(yn have pkg-config)
+marp=$(yn have marp); npx=$(yn have npx); pdftotext=$(yn have pdftotext); say=$(yn have say)
+subtitles=false
+[ "$ffmpeg" = true ] && ffmpeg -hide_banner -filters 2>/dev/null | grep -q ' subtitles ' && subtitles=true
+cairo=false
+[ "$pkgconfig" = true ] && pkg-config --exists cairo 2>/dev/null && cairo=true
+
+node=false; nodev=none
+if have node; then
+  nodev=$(node -v 2>/dev/null | sed 's/^v//')
+  major=${nodev%%.*}
+  case $major in ''|*[!0-9]*) nodev=none;; *) [ "$major" -ge 22 ] && node=true;; esac
+fi
+
+chromium=false
+for c in google-chrome google-chrome-stable chromium chromium-browser chrome; do have "$c" && chromium=true; done
+oldifs=$IFS; IFS=:
+for a in $apps; do [ -x "$a" ] && chromium=true; done
+IFS=$oldifs
+
+t1=$uv
+t2=false; [ "$uv" = true ] && [ "$ffmpeg" = true ] && [ "$cairo" = true ] && t2=true
+t3=false; [ "$node" = true ] && [ "$chromium" = true ] && t3=true
+
+printf '{"tiers":{"0":true,"1":%s,"2":%s,"3":%s},"probes":{"uv":%s,"ffmpeg":%s,"ffmpeg_subtitles":%s,"pkg_config":%s,"cairo":%s,"node22":%s,"node_version":"%s","chromium":%s,"marp":%s,"npx":%s,"pdftotext":%s,"say":%s}}\n' \
+  "$t1" "$t2" "$t3" "$uv" "$ffmpeg" "$subtitles" "$pkgconfig" "$cairo" "$node" "$nodev" "$chromium" "$marp" "$npx" "$pdftotext" "$say"
+
+[ -n "$dir" ] || exit 0
+mkdir -p "$dir" 2>/dev/null || exit 0
+n=0
+miss() { n=$((n + 1)); echo "- $1: \`$2\` (~$3)"; }
+{
+  echo "# Preflight"
+  echo
+  echo "Nothing was installed. Run the commands below yourself (macOS, Homebrew); sizes are approximate downloads."
+  echo
+  echo "## Tiers"
+  echo
+  echo "- tier 0 (none): available"
+  echo "- tier 1 (uv): $t1"
+  echo "- tier 2 (uv + ffmpeg + cairo + pkg-config): $t2"
+  echo "- tier 3 (Node 22+ + headless Chromium): $t3"
+  echo
+  echo "## Probes"
+  echo
+  echo "- uv: $uv"
+  echo "- ffmpeg: $ffmpeg (subtitles filter: $subtitles)"
+  echo "- cairo: $cairo; pkg-config: $pkgconfig"
+  echo "- node 22+: $node (found: $nodev)"
+  echo "- headless chromium: $chromium"
+  echo "- marp: $marp; npx: $npx"
+  echo "- pdftotext: $pdftotext"
+  echo "- say: $say"
+  echo
+  echo "## Missing"
+  echo
+  [ "$uv" = true ] || miss "uv (tier 1)" "brew install uv" "40 MB"
+  [ "$ffmpeg" = true ] || miss "ffmpeg (tier 2)" "brew install ffmpeg" "100 MB"
+  [ "$ffmpeg" = false ] || [ "$subtitles" = true ] || miss "ffmpeg subtitles filter (soft captions)" "brew install ffmpeg" "100 MB; needs a build with libass"
+  [ "$cairo" = true ] || miss "cairo and pkg-config (tier 2)" "brew install cairo pkg-config" "60 MB"
+  [ "$node" = true ] || miss "Node 22+ (tier 3)" "brew install node" "80 MB"
+  [ "$chromium" = true ] || miss "headless Chromium (tier 3)" "brew install --cask google-chrome" "250 MB"
+  [ "$marp" = true ] || [ "$npx" = true ] || miss "marp or npx (render slides)" "brew install node" "80 MB"
+  [ "$pdftotext" = true ] || miss "pdftotext (PDF text, optional)" "brew install poppler" "30 MB"
+  [ "$say" = true ] || miss "say (fallback narration voice)" "macOS only, no install" "0"
+} > "$dir/preflight.md"
+# miss runs in the group's shell (no pipe), so n is live here
+[ "$n" -gt 0 ] || echo "none" >> "$dir/preflight.md"
+exit 0
