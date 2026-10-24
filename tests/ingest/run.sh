@@ -75,6 +75,9 @@ if command -v uv >/dev/null; then
   printf 'not a pdf' > "$tmp/bad.pdf"
   t "pdf broken file refused" sh -c "! uv run --script '$sc/chunk-pdf' '$tmp/bad.pdf' '$tmp/pdf-bad' --origin x 2>/dev/null"
   # merge-summaries: batches of 5 ids, merge fills slots, truncates to 25 words, titles stand in for lost batches
+  pp=$here/../../learn-anything/scripts/pdf-pages
+  t "pdf-pages: copies 1 to 3 pages" sh -c "uv run --script '$pp' '$tmp/o.pdf' 2-3 '$tmp/two.pdf' >/dev/null && uv run --no-project --with pypdf==6.21.2 python -c \"import pypdf,sys; sys.exit(len(pypdf.PdfReader('$tmp/two.pdf').pages) != 2)\" 2>/dev/null"
+  t "pdf-pages: refuses 4 pages and out-of-range" sh -c "! uv run --script '$pp' '$tmp/o.pdf' 1-4 '$tmp/x.pdf' 2>/dev/null && ! uv run --script '$pp' '$tmp/o.pdf' 30 '$tmp/x.pdf' 2>/dev/null"
   t "merge: --batches lists pending ids, 5 per line" sh -c "[ \"\$(python3 '$sc/merge-summaries' '$tmp/pdf-w' --batches 2 | head -n 1)\" = 'c01 c02' ]"
   mkdir -p "$tmp/mw"
   words=$(i=0; while [ $i -lt 30 ]; do printf 'w%s ' $i; i=$((i + 1)); done)

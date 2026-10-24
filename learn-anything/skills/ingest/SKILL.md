@@ -2,16 +2,12 @@
 name: ingest
 description: "Internal learn-anything step, not for direct use: normalize one source (topic, URL, PDF, file) into a source doc with a chunk index. Spawns subagents."
 user-invocable: false
-compatibility: Topic and local text, Markdown or code files need shasum, date and python3. URLs and local HTML also need uv and curl.
+compatibility: Topic and local text, Markdown or code files need shasum, date and python3. URLs, local HTML and PDFs also need uv; URLs need curl. pdftotext is optional.
 ---
 
 # ingest
 
 Normalize one source of `brief.md`'s `sources` into `./learn-anything/<slug>/sources/<source-id>/`. Ids are `s1`, `s2` in brief order, never merged. Input from the conductor: the lesson folder, the source entry and its id (`sN`). Never `cd`. Scratch files go in `work/ingest-<sN>/`, deleted when the source is `ok`.
-
-## Tracer scope
-
-Not built yet: PDFs (report `failed`, reason `pdf not supported yet`), the large-source subagent phases and chunk summaries by `haiku`; spawn nothing.
 
 ## Routing
 
@@ -21,7 +17,7 @@ Decide from the entry, then follow the matching section:
 - starts with `http://` or `https://`: URL source.
 - otherwise a path. Missing or unreadable: `failed` (`file not found`). Check the extension, case-insensitively:
   - `.docx`, `.doc`, `.epub`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.heic`, `.tiff`: `failed`, reason `unsupported <ext>` plus the export hint below.
-  - `.pdf`: `failed` (tracer scope).
+  - `.pdf`: PDF source.
   - `.html`, `.htm`: HTML file source.
   - anything else (`.md`, `.txt`, code): text file source.
 
@@ -82,9 +78,22 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/ingest/scripts/chunk ./learn-anything/<slug
 
 A `curl` error is `failed` with its message. `fetch-url` strips line-number anchors from code blocks, converts with trafilatura, and exits 3 when under about 250 characters remain (a JS shell): `failed`, reason `page too short after extraction (needs JavaScript?)`. Outbound links land in the index's `links`. No `uv`: `failed`, reason `uv missing`; the conductor prints the install command, never run it.
 
+## PDF source
+
+Referenced in place, hashed, cut by `chunk-pdf` (pypdf, pinned): outline, else printed contents page, else windows of about 15 pages. Every chunk has a page range; a text layer also gets a `pdftotext -layout` cache per chunk (pypdf text when poppler is missing); a scanned PDF gets page pointers only and prefilled summaries, so it still plans.
+
+```
+uv run --script ${CLAUDE_PLUGIN_ROOT}/skills/ingest/scripts/chunk-pdf <path> ./learn-anything/<slug>/sources/<sN> --origin <path>
+```
+
+Exit 1 is `failed` with the script's message (`encrypted PDF`, `unreadable PDF: ...`). No `uv`: `failed`, `uv missing`.
+
 ## Summaries
 
-`chunk` leaves a line `SUMMARY` after each chunk entry. Replace each with a summary of at most 25 words, edited in `index.md` in place. Small source (`tokens` up to about 20000): read each chunk file once and summarize it. Larger: read only the first 600 characters of each chunk (`head -c 600`) and its title; this is a known ceiling until the batch phases land. Afterwards `grep -c '^SUMMARY$' index.md` must print 0.
+`chunk` and `chunk-pdf` leave a line `SUMMARY` after each chunk entry to fill with at most 25 words. They print the totals; a source is small when `tokens` is at most about 20000 and it has at most about 15 pages, else large.
+
+- **Small:** read each chunk file once, replace each slot in `index.md` in place. Afterwards `grep -c '^SUMMARY$' index.md` must print 0.
+- **Large (two phases):** the cut above is phase 1 and is done. Write no summaries, spawn nothing; you are not the one to fan out. Reply `<sN>: cut <index path> - <k> chunks to summarize` (phase 2 is the conductor's, see `${CLAUDE_PLUGIN_ROOT}/skills/learn/dispatch.md`). Nothing but `merge-summaries` touches `index.md` after the cut. A large source with no `SUMMARY` slots (scanned PDF) is simply `ok`.
 
 ## Failure
 
@@ -92,7 +101,7 @@ On any `failed`, remove a half-written `sources/<sN>/` and write only this `inde
 
 ```markdown
 ---
-kind: <topic|url|file>
+kind: <topic|url|file|pdf>
 origin: <entry>
 hash: none
 fetched: <date -u +%Y-%m-%dT%H:%M:%SZ>
@@ -107,4 +116,4 @@ reason: <why, with the export hint when it applies>
 
 ## Reply
 
-One line: `<sN>: ok <index path>` or `<sN>: failed - <reason>`. On `ok`, `rm -rf` the `work/ingest-<sN>` folder.
+One line: `<sN>: ok <index path>`, `<sN>: failed - <reason>`, or the large-source `cut` line. On `ok`, `rm -rf` the `work/ingest-<sN>` folder.

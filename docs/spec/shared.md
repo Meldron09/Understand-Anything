@@ -66,6 +66,10 @@ Tier-0 `sh`. Prints a compact JSON to stdout and writes `preflight.md` (to the l
 
 Tier-0 `sh` taking an HTML path. Rules: no external URLs (`http://` or `https://` in `src`/`href`/`url()`), balanced `<script>` tags, every `getElementById` target exists, the ready marker (`data-ready` attribute set by the runtime) is present in the source. Prints one line per violation; non-zero exit on any. When `preflight.md` reports a headless Chromium, also runs `--dump-dom` and requires `data-ready` on `<body>`; otherwise the caller adds `not browser-tested` to the footer notes.
 
+## `scripts/pdf-pages` (text, slides)
+
+Tier-1 `uv` script (pypdf): `pdf-pages <pdf> <first>-<last> <out.pdf>` copies at most 3 pages into a small PDF, which the skill then reads natively whole. This enforces the cap of 3 native pages per unit and needs no poppler (a `Read` with `pages` does).
+
 ## `scripts/lint-skills`
 
 Tier-0 `sh` run in CI and before release: SKILL.md line caps (table in SPEC.md), 200 hard ceiling, reference files over about 120 lines, hidden-description length (at most 250 characters), the `Internal learn-anything step, not for direct use:` prefix and the closing phrase, `user-invocable: false` on hidden skills and `disable-model-invocation: true` on `learn` only, and that every `${CLAUDE_PLUGIN_ROOT}/...` path named in a `SKILL.md` exists.
