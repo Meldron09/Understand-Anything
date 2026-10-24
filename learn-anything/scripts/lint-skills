@@ -1,0 +1,61 @@
+#!/bin/sh
+# lint-skills [plugin-root]: enforce SKILL.md line caps, description rules, invocation flags
+# and ${CLAUDE_PLUGIN_ROOT} paths (docs/spec/shared.md). POSIX sh. Exit 1 on any violation.
+# Frontmatter must be single-line `key: value`; quote descriptions (they contain ": ").
+root=${1:-$(cd "$(dirname "$0")/.." && pwd)}
+rc=0
+fail() { printf '%s: %s\n' "$1" "$2"; rc=1; }
+fmval() { printf '%s\n' "$1" | grep "^$2:" | head -n 1 | sed "s/^$2:[[:space:]]*//; s/^\"\(.*\)\"\$/\1/"; }
+
+cap() { # SKILL.md line cap per skill (SPEC.md section 2); text/slides "~60" read as 70
+  case $1 in
+    learn|intake) echo 150;; ingest|router|video) echo 120;; check) echo 80;;
+    text|slides) echo 70;; interactive|quiz) echo 100;; *) echo 200;;
+  esac
+}
+
+for f in "$root"/skills/*/SKILL.md; do
+  [ -f "$f" ] || continue
+  name=$(basename "$(dirname "$f")")
+  lines=$(wc -l < "$f" | tr -d ' ')
+  c=$(cap "$name")
+  [ "$lines" -le "$c" ] || fail "$f" "$lines lines, cap $c"
+  [ "$lines" -le 200 ] || fail "$f" "over the 200-line hard ceiling"
+
+  if [ "$(sed -n 1p "$f")" != "---" ]; then fail "$f" "no frontmatter"; continue; fi
+  fm=$(sed -n '2,/^---$/p' "$f" | sed '$d')
+  desc=$(fmval "$fm" description)
+  [ -n "$desc" ] || { fail "$f" "missing description"; continue; }
+
+  if [ "$name" = learn ]; then
+    printf '%s\n' "$fm" | grep -q '^disable-model-invocation:[[:space:]]*true' || fail "$f" "learn needs disable-model-invocation: true"
+    printf '%s\n' "$fm" | grep -q '^user-invocable:[[:space:]]*false' && fail "$f" "learn must be user-invocable"
+    case $desc in *"Not for "*) ;; *) fail "$f" "conductor description needs a 'Not for' clause";; esac
+    case $desc in *"Runs inline and spawns subagents.") ;; *) fail "$f" "conductor description must end 'Runs inline and spawns subagents.'";; esac
+    case $desc in "Internal learn-anything step"*) fail "$f" "conductor description must put the trigger first";; esac
+  else
+    n=$(printf '%s' "$desc" | wc -m | tr -d ' ')
+    [ "$n" -le 250 ] || fail "$f" "description is $n characters, max 250"
+    case $desc in "Internal learn-anything step, not for direct use: "*) ;; *) fail "$f" "description must start 'Internal learn-anything step, not for direct use: '";; esac
+    case $desc in *"Runs inline."|*"Spawns subagents."|*"Runs in a unit subagent; spawns none.") ;; *) fail "$f" "description must end with 'Runs inline.', 'Spawns subagents.' or 'Runs in a unit subagent; spawns none.'";; esac
+    printf '%s\n' "$fm" | grep -q '^user-invocable:[[:space:]]*false' || fail "$f" "hidden skill needs user-invocable: false"
+    printf '%s\n' "$fm" | grep -q '^disable-model-invocation:' && fail "$f" "only learn may set disable-model-invocation"
+  fi
+
+  # subshell pipe: report via a marker file-free trick, count lines printed
+  missing=$(grep -o '\${CLAUDE_PLUGIN_ROOT}/[A-Za-z0-9_./-]*' "$f" | sed 's/[.,]*$//' | sort -u | while read -r p; do
+    [ -e "$root/${p#\$\{CLAUDE_PLUGIN_ROOT\}/}" ] || echo "$f: missing path $p"
+  done)
+  [ -z "$missing" ] || { printf '%s\n' "$missing"; rc=1; }
+done
+
+# reference files: about 120 lines max
+for f in "$root"/skills/*/*.md "$root"/shared/*.md; do
+  [ -f "$f" ] || continue
+  [ "$(basename "$f")" = SKILL.md ] && continue
+  lines=$(wc -l < "$f" | tr -d ' ')
+  [ "$lines" -le 120 ] || fail "$f" "reference is $lines lines, max about 120"
+done
+
+[ "$rc" -eq 0 ] && echo "lint-skills: ok"
+exit "$rc"

@@ -1,0 +1,8 @@
+{
+  "name": "learn-anything",
+  "version": "0.1.0",
+  "description": "Interviews you, ingests your sources, plans a lesson sized to your time, produces it as text, slides, interactive HTML, quiz or narrated video, and checks what you learned. Free and local.",
+  "author": { "name": "Meldron Almeida" },
+  "license": "MIT",
+  "keywords": ["learning", "lesson", "tutor", "quiz", "slides", "video"]
+}
