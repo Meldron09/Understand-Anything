@@ -1,0 +1,6 @@
+[
+  {"id":"i01","type":"mcq","concept":"SYN","rung":"define","q":"What does the SYN flag do?","answer":"It opens a connection and proposes an initial sequence number.","choices":[{"text":"Closes the connection"},{"text":"Opens a connection and proposes a sequence number","correct":true}],"slice":"s1#c01"},
+  {"id":"i02","type":"short","concept":"SYN","rung":"why","q":"Why does the client pick a random initial sequence number?","answer":"To avoid confusing old and new connections.","rubric":"Mentions stale or spoofed segments.","alt":"Why not always start at 0?","slice":"s1#c01"},
+  {"id":"i03","type":"flip","concept":"ACK","rung":"define","q":"ACK","answer":"Acknowledges the next sequence number expected.","slice":"s1#c01"},
+  {"id":"i04","type":"flip","concept":"ACK","rung":"apply","q":"Server sent seq=100; what ack does the client send?","answer":"101","slice":"s1#c01"}
+]
