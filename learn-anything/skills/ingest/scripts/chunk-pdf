@@ -1,0 +1,150 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pypdf==6.21.2"]
+# ///
+"""chunk-pdf <pdf> <source-dir> --origin <path>
+
+Cut a PDF into chunks by its outline, else its printed contents page, else windows of about 15
+pages, and write <source-dir>/index.md plus a text cache chunks/cNN.txt per chunk when the PDF
+has a text layer (pdftotext -layout when installed, else pypdf; pages are separated by form
+feeds). Every chunk records its page range. A scanned PDF (no text layer) gets page pointers
+only. Each chunk entry that needs a summary is followed by a line `SUMMARY`.
+Exit 1 (message on stderr) when the PDF is encrypted or unreadable.
+"""
+import argparse, hashlib, re, shutil, subprocess, sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+from pypdf import PdfReader
+
+WINDOW = 15      # pages per fallback window
+MAX_SPAN = 20    # an outline chunk longer than this is cut into windows
+MIN_SPAN = 3     # an outline chunk shorter than this joins the next one
+SCAN_TOKENS = 500  # ponytail: flat guess per scanned page; no text to count
+ENTRY = re.compile(r"^(.+?)[\s.·]{2,}(\d{1,4})\s*$")
+
+
+def outline_entries(r):
+    out = []
+    for it in r.outline:
+        if isinstance(it, list):
+            continue  # ponytail: top-level bookmarks only; nested ones are not used
+        try:
+            out.append((str(it.title).strip(), r.get_destination_page_number(it) + 1))
+        except Exception:
+            pass
+    return out
+
+
+def contents_entries(texts):
+    """Entries from a printed contents page among the first 12 pages, printed numbers mapped to PDF pages."""
+    for cp, t in enumerate(texts[:12]):
+        ls = [l.strip() for l in t.splitlines() if l.strip()]
+        if not any(re.match(r"(table of )?contents$", l, re.I) for l in ls[:5]):
+            continue
+        ents = [(m.group(1).strip(), int(m.group(2))) for l in ls if (m := ENTRY.match(l))]
+        if len(ents) < 3 or [p for _, p in ents] != sorted(p for _, p in ents):
+            continue
+        # the printed number differs from the PDF page by a fixed offset: find the first title on a later page
+        off = 0
+        for pg in range(cp + 1, len(texts)):
+            if ents[0][0].lower() in texts[pg].lower():
+                off = pg + 1 - ents[0][1]
+                break
+        return [(t, p + off) for t, p in ents]
+    return []
+
+
+def segments(entries, n):
+    """[(title, first, last)] from (title, first page) cut points; None when they are not usable."""
+    es = sorted({p: t for t, p in reversed(entries) if 1 <= p <= n}.items())
+    if len(es) < 2:
+        return None
+    if es[0][0] > 1:
+        es.insert(0, (1, "Front matter"))
+    segs, carry = [], None
+    for i, (p, t) in enumerate(es):
+        last = es[i + 1][0] - 1 if i + 1 < len(es) else n
+        if carry:
+            t, p = f"{carry[0]}; {t}", carry[1]
+            carry = None
+        if last - p + 1 < MIN_SPAN and i + 1 < len(es) and t != "Front matter":
+            carry = (t, p)
+        else:
+            segs.append((t, p, last))
+    out = []
+    for t, a, b in segs:
+        if b - a + 1 <= MAX_SPAN:
+            out.append((t, a, b))
+        else:
+            k = round((b - a + 1) / WINDOW)
+            step = (b - a + 1) / k
+            for j in range(k):
+                x, y = a + round(j * step), a + round((j + 1) * step) - 1
+                out.append((f"{t} (part {j + 1})", x, y))
+    return out
+
+
+def windows(n):
+    k = max(1, round(n / WINDOW))
+    cuts = [round(j * n / k) for j in range(k + 1)]
+    return [(f"Pages {a + 1}-{b}", a + 1, b) for a, b in zip(cuts, cuts[1:])]
+
+
+def pages(a, b):
+    return f"p. {a}" if a == b else f"pp. {a}-{b}"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("pdf"), ap.add_argument("dest"), ap.add_argument("--origin", required=True)
+    a = ap.parse_args()
+    try:
+        r = PdfReader(a.pdf)
+        if r.is_encrypted and not r.decrypt(""):
+            sys.exit("encrypted PDF")
+        n = len(r.pages)
+        texts = [p.extract_text() or "" for p in r.pages]
+        entries = outline_entries(r)
+    except SystemExit:
+        raise
+    except Exception as e:
+        sys.exit(f"unreadable PDF: {e}")
+    if n == 0:
+        sys.exit("unreadable PDF: no pages")
+    layer = sum(len(t.strip()) >= 20 for t in texts) * 2 >= n
+    how, segs = "outline", segments(entries, n)
+    if not segs and layer:
+        how, segs = "contents", segments(contents_entries(texts), n)
+    if not segs:
+        how, segs = "window", windows(n)
+    dest = Path(a.dest)
+    (dest / "chunks").mkdir(parents=True, exist_ok=True)
+    width = max(2, len(str(len(segs))))
+    lines, total = [], 0
+    for i, (title, x, y) in enumerate(segs, 1):
+        cid, head = f"c{i:0{width}d}", f"{title.replace('|', '/')} | {pages(x, y)} | "
+        if layer:
+            if shutil.which("pdftotext"):
+                t = subprocess.run(["pdftotext", "-layout", "-f", str(x), "-l", str(y), a.pdf, "-"],
+                                   capture_output=True, text=True).stdout
+            else:
+                t = "\f".join(texts[x - 1:y])
+            (dest / "chunks" / f"{cid}.txt").write_text(t, encoding="utf-8")
+            tok = len(t) // 4
+            lines += [f"{cid} | {head}{tok} | chunks/{cid}.txt", "SUMMARY"]
+        else:
+            tok = (y - x + 1) * SCAN_TOKENS
+            lines += [f"{cid} | {head}{tok}", "Scanned pages with no text layer; read the pages natively."]
+        total += tok
+    h = hashlib.sha256(Path(a.pdf).read_bytes()).hexdigest()
+    front = ["---", "kind: pdf", f"origin: {a.origin}", f"hash: sha256:{h}",
+             f"fetched: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}", "grounded: true",
+             f"tokens: {total}", f"chunking: {how}", "status: ok", "links: []", "---"]
+    (dest / "index.md").write_text("\n".join(front + lines) + "\n", encoding="utf-8")
+    print(f"{len(segs)} chunks, {total} tokens, {n} pages, chunking {how}, {'text layer' if layer else 'scanned'}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""merge-summaries <source-dir> --batches [N]
+merge-summaries <source-dir> <work-dir>
+
+--batches prints the chunk ids still waiting for a summary (index.md line `SUMMARY`), N per line
+(default 5), one line per `haiku` batch. The merge reads <work-dir>/summaries-*.txt (lines
+`cNN | summary`) and is the only writer of index.md after the cut: it replaces each `SUMMARY`
+slot with at most 25 words. A chunk with no summary gets its title and the count is printed;
+exit 0 either way, so one lost batch degrades a summary, never the source. Stdlib only.
+"""
+import re, sys
+from pathlib import Path
+
+ENTRY = re.compile(r"^(c\d+) \| (.*?) \|")
+
+
+def slots(lines):
+    """Yield (entry line index, chunk id, title) for each entry followed by a SUMMARY line."""
+    for i, l in enumerate(lines[:-1]):
+        m = ENTRY.match(l)
+        if m and lines[i + 1] == "SUMMARY":
+            yield i, m.group(1), m.group(2)
+
+
+def main():
+    src = Path(sys.argv[1])
+    index = src / "index.md"
+    lines = index.read_text(encoding="utf-8").splitlines()
+    if sys.argv[2] == "--batches":
+        n = int(sys.argv[3]) if len(sys.argv) > 3 else 5
+        ids = [c for _, c, _ in slots(lines)]
+        for j in range(0, len(ids), n):
+            print(" ".join(ids[j:j + n]))
+        return
+    got = {}
+    for f in sorted(Path(sys.argv[2]).glob("summaries-*.txt")):
+        for l in f.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"^(c\d+) \| (.+)$", l.strip())
+            if m:
+                got[m.group(1)] = m.group(2)
+    missing = 0
+    for i, cid, title in slots(lines):
+        s = got.get(cid)
+        if not s:
+            missing += 1
+            s = title
+        lines[i + 1] = " ".join(s.split()[:25])
+    tmp = src / "index.md.tmp"
+    tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tmp.replace(index)
+    print(f"merged, {missing} chunks without a summary (title used)")
+
+
+if __name__ == "__main__":
+    main()
