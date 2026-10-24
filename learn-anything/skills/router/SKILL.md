@@ -7,15 +7,16 @@ compatibility: shasum.
 
 # router
 
-Turn `brief.md` and each source's `index.md` into the content of `plan.md`. Read only those (never chunk text, never a full source). Write `./learn-anything/<slug>/plan.md` as the conductor's delegate, once, when it does not exist yet; afterwards the conductor is its only writer.
+Turn `brief.md` and each source's `index.md` into the content of `plan.md`. Read only those (never chunk text, never a full source). Write `./learn-anything/<slug>/plan.md` as the conductor's delegate, when it does not exist yet or when the conductor re-invokes you (a plan-gate adjustment or amend); a `note:` in the input is the learner's change (slicing, size, renderer) and wins over your defaults. Overwrite the whole file then. At any other time the conductor is its only writer.
 
 ## Tracer scope
 
-Not built yet: other modes, renderers and `renderers.md`, tier prediction beyond slides, caps and over-cap marking, multi-unit slicing. Plan exactly one unit (text, quiz or slides), whose slices may come from several sources.
+Not built yet: other modes, renderers and `renderers.md`, tier prediction beyond slides, multi-unit slicing. Plan exactly one unit (text, quiz or slides), whose slices may come from several sources.
 
 ## Rules
 
 - **Mode is binding.** Every mode in `brief.modes` gets a unit; never add or drop one. A mode other than `text`, `quiz` or `slides` is not supported yet: stop and tell the conductor.
+- **Caps.** At most 8 units and 5 video minutes. Never shrink, merge or drop to fit: write the plan as sized and add frontmatter `over-cap: <units/minutes, one line>`; the conductor refuses it until the learner cuts.
 - **Sizing.** `planned` = 90% of `budget` in minutes (the rest is the check). Text rate is 200 words per minute, so `size` = `budget` x 180 words. Quiz rate is 0.5 minute per item, so `size` = `budget` x 1.8 items, rounded, written `N items` (`artifact` ends `.html`). Slides run 1.5 minutes per slide, so `size` = `budget` x 0.6 slides rounded down, at least 3 (goal slide, one concept, takeaways), written `6 slides`.
 - **Slides prediction.** Slides are tier 0 with an optional render. If `preflight.md` exists and its `- marp: false; npx: false` probe line shows both missing (the script writes `- marp: <true|false>; npx: <true|false>`), add `predicted: unrendered` to the unit. Offer no install-or-downgrade choice for slides and never change the mode. No `preflight.md` or no such line: write no prediction.
 - **Sources.** Read every `sources/sN/index.md`; ignore one whose `status` is `failed` (it has no chunks, and the conductor reports it). Never read chunk text.
