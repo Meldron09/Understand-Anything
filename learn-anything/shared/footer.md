@@ -9,4 +9,4 @@ reason: <only on degraded or failed>
 notes: <comma-separated key=value; keys below>
 ```
 
-Notes keys: text `words=<n>`, `ungrounded=true`, `native_pages=<n>`, `short=<why>`; quiz `items=<n>`, `not browser-tested`; slides `slides=<n>`, `rendered=html|pdf|none`, `math=raw`, `diagrams=raw`. The conductor surfaces notes to the learner only for `short=`, `rendered=none` and `ungrounded=true`.
+Notes keys: text `words=<n>`, `ungrounded=true`, `native_pages=<n>`, `short=<why>`; quiz `items=<n>`, `not browser-tested`; interactive `widgets=<n>`, `not browser-tested`, `ungrounded=true`, `short=<why>`; slides `slides=<n>`, `rendered=html|pdf|none`, `math=raw`, `diagrams=raw`. The conductor surfaces notes to the learner only for `short=`, `rendered=none` and `ungrounded=true`.

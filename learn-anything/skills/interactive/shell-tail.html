@@ -1,0 +1,10 @@
+</main>
+<script>
+// Runtime: mark the page ready once the body has rendered 1 to 5 widgets.
+(function () {
+  var n = document.querySelectorAll('#lesson .widget').length;
+  if (n >= 1 && n <= 5) document.body.setAttribute('data-ready', String(n));
+})();
+</script>
+</body>
+</html>

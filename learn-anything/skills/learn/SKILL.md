@@ -21,7 +21,7 @@ Brief template and footer parsing: ${CLAUDE_PLUGIN_ROOT}/skills/learn/dispatch.m
 
 ## Tracer scope
 
-Built so far: topic in, one text, quiz or slides unit out, the plan gate and adjustments. Not built yet (later tickets): the diagnostic ladder, PDF sources and large-source ingest, other modes, subagent dispatch, the failure re-dispatch, hash-change archiving, the comprehension check. Where a step below says "later", skip it and say nothing.
+Built so far: topic in, one text, quiz, slides or interactive unit out, the plan gate and adjustments. Not built yet (later tickets): the diagnostic ladder, PDF sources and large-source ingest, other modes, subagent dispatch, the failure re-dispatch, hash-change archiving, the comprehension check. Where a step below says "later", skip it and say nothing.
 
 ## Sequence
 
@@ -30,7 +30,7 @@ Built so far: topic in, one text, quiz or slides unit out, the plan gate and adj
 3. **Ingest.** For each source in the brief's `sources` (in order, ids `s1`, `s2`), invoke `learn-anything:ingest` with the lesson folder, the source entry and its id; it replies `sN: ok` or `sN: failed - <reason>`. A failed source is noted (id, entry, reason) and the others continue. If every source failed, stop and tell the learner each reason; never fall back to an ungrounded topic and never run the router.
 4. **Router.** Invoke `learn-anything:router` with the lesson folder; it writes `plan.md`.
 5. **Plan gate.** Follow `gate.md`: it decides skip, show or refuse, and routes each learner adjustment. Never dispatch a refused plan or one the learner has not confirmed.
-6. **Dispatch units** in plan order. A one-unit plan runs inline: invoke the unit's mode skill (`learn-anything:text`, `learn-anything:quiz` or `learn-anything:slides`) yourself with the brief from `dispatch.md` as its args. Subagents later. Parse the footer; set the unit's `status:` in `plan.md` from `status`, add `artifact: <path>` to its block, print one progress line. Delete `work/<unit-id>/` on `done` (`rm -rf`). The skill's result is not a reply: your very next tool call is the `plan.md` edit, then steps 7 to 9; never answer with the footer.
+6. **Dispatch units** in plan order. A one-unit plan runs inline: invoke the unit's mode skill (`learn-anything:text`, `learn-anything:quiz`, `learn-anything:slides` or `learn-anything:interactive`) yourself with the brief from `dispatch.md` as its args. Subagents later. Parse the footer; set the unit's `status:` in `plan.md` from `status`, add `artifact: <path>` to its block, print one progress line. Delete `work/<unit-id>/` on `done` (`rm -rf`). The skill's result is not a reply: your very next tool call is the `plan.md` edit, then steps 7 to 9; never answer with the footer.
 7. **Failure.** On `failed` or a missing footer, record `failed: <reason>` in the plan and report it. Re-dispatch straight to text comes later.
 8. **Check.** Later.
 9. **Close.** List the artifacts by path, any failed sources with reasons, and any `degraded` or `failed` units with reasons. Surface footer notes only for `short=`, `rendered=none` and `ungrounded=true` (say the lesson is written from general knowledge, not a source). For `rendered=none`, tell the learner once, however many slides units: the deck is plain Markdown and renders with `npx @marp-team/marp-cli <deck>.md -o <deck>.html` (or `brew install marp-cli`, then `marp <deck>.md`); never run the install. Say nothing about `math=raw` or `diagrams=raw`.

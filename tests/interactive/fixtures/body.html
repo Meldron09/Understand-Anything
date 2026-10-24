@@ -1,0 +1,31 @@
+<section class="widget" id="w1">
+  <h2>SYN</h2>
+  <p class="lead">Predict which flag the client sends first, then reveal.</p>
+  <div class="demo">
+    <button id="w1-a">SYN</button><button id="w1-b">ACK</button>
+    <button id="w1-reveal" disabled>Reveal</button>
+    <div class="out" id="w1-out"></div>
+  </div>
+  <p class="takeaway">The client opens with SYN.</p>
+  <script>(function () {
+    var out = document.getElementById('w1-out'), reveal = document.getElementById('w1-reveal'), guess;
+    ['w1-a', 'w1-b'].forEach(function (id) {
+      document.getElementById(id).onclick = function () { guess = this.textContent; reveal.disabled = false; };
+    });
+    reveal.onclick = function () { out.textContent = (guess === 'SYN' ? 'Right. ' : 'Not quite. ') + 'The client sends SYN first.'; };
+  })();</script>
+</section>
+<section class="widget" id="w2">
+  <h2>Window size</h2>
+  <p class="lead">Drag the slider and watch the bar.</p>
+  <div class="demo">
+    <input type="range" id="w2-s" min="1" max="10" value="5">
+    <svg viewBox="0 0 100 20"><rect id="w2-bar" x="0" y="5" width="50" height="10" fill="#2a5bd7"></rect></svg>
+  </div>
+  <p class="takeaway">A bigger window means more bytes in flight.</p>
+  <script>(function () {
+    var s = document.getElementById('w2-s'), bar = document.getElementById('w2-bar');
+    s.oninput = function () { bar.setAttribute('width', String(s.value * 10)); };
+  })();</script>
+</section>
+<footer>Sources: s1#c01</footer>
