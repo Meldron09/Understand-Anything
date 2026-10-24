@@ -33,3 +33,13 @@ Item schema: ${CLAUDE_PLUGIN_ROOT}/shared/items.md. Shaping: ${CLAUDE_PLUGIN_ROO
 ## Footer notes
 
 `items=<n>` always. If `items.json` cannot be written, return `status: failed` with `reason:` (the conductor re-dispatches to text).
+
+## Check flavor
+
+A brief with `flavor: check` (plus `exclude`, `size`, `slices`, `work`; no `unit`, no `artifact`) asks for the comprehension check's items instead. Do the procedure above only as far as reading the brief, the plan's slices and the chunk text, then:
+
+- Write only `<work>/items.json`: `short` items only, plus one `explain` when `size` says so. No HTML, no sidecar, no verify. Every item has `rubric` and `alt`.
+- `size` is exact. Tag items with the `core:` concepts, spread over them and weighted to the ladder's `shaky` and `missed` ones; `other` only when nothing core fits.
+- Follow the ladder's shape (`define`, `why`, `apply`, `edge`), lowest rung first, at the brief's `level`; `advanced` skips `define`.
+- `exclude` is a file of lines `"q":"<text>"`. No `q` or `alt` may equal or paraphrase any of them.
+- Footer: `artifact:` the items file, `notes: items=<n>`.
