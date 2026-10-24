@@ -1,0 +1,79 @@
+#!/bin/sh
+# resume-check match <arg> | list | <lesson-dir>: the conductor's resume logic (docs/spec/skills/learn.md).
+#   match <arg>   exit 0 if <arg> is exactly a folder name under ./learn-anything/, else 1.
+#   list          one line per unfinished lesson (no plan yet, or a unit still pending).
+#   <lesson-dir>  compare plan.md `inputs` with the current brief.md and each index.md; any change (or a
+#                 local source edited since ingest) archives plan.md and lesson/ as plan.N.md and lesson.N/
+#                 (N = first free number), removes work/ and starts clean. A local source whose file moved
+#                 becomes status: failed. A pending unit's work/<id>/ is cleared. Last line:
+#                 `resume: intake | ingest sN.. | router | units uN.. | done`. POSIX sh + awk + shasum.
+root=./learn-anything
+fm() { sed -n '2,/^---$/p' "$1" | sed '$d'; }
+fmkey() { fm "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -n 1; }
+sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
+pending() { awk '/^## u[0-9]+$/ { id = $2 } /^status:[ \t]*pending/ && id != "" { print id }' "$1"; }
+
+case $1 in
+  match) case $2 in ''|*/*|.*) exit 1;; esac; [ -d "$root/$2" ]; exit ;;
+  list) for d in "$root"/*/; do
+      [ -f "$d/brief.md" ] || continue
+      if [ ! -f "$d/plan.md" ]; then echo "$(basename "$d") | no plan yet"; continue; fi
+      n=$(pending "$d/plan.md" | wc -l | tr -d ' ')
+      [ "$n" -eq 0 ] || echo "$(basename "$d") | $n of $(grep -c '^## u' "$d/plan.md") units pending"
+    done; exit 0 ;;
+esac
+
+d=${1:?usage: resume-check match <arg> | list | <lesson-dir>}
+[ -f "$d/brief.md" ] || { echo "resume: intake"; exit 0; }
+p=$d/plan.md
+moved=""; edited=""
+for i in "$d"/sources/*/index.md; do
+  [ -f "$i" ] || continue
+  s=$(basename "$(dirname "$i")")
+  [ "$(fmkey "$i" kind)" = file ] && [ "$(fmkey "$i" status)" != failed ] || continue
+  o=$(fmkey "$i" origin)
+  if [ ! -f "$o" ]; then moved="$moved $s"
+  elif [ "sha256:$(sha "$o")" != "$(fmkey "$i" hash)" ]; then edited="$edited $s"; fi
+done
+
+changed=""
+if [ -f "$p" ]; then
+  want=$(sed -n 's/^inputs:[[:space:]]*{\(.*\)}.*/\1/p' "$p" | head -n 1 | tr ',' '\n' | sed 's/^ *//; s/: *sha256:/=/')
+  have=$( { echo "brief=$(sha "$d/brief.md")"
+    for i in "$d"/sources/*/index.md; do [ -f "$i" ] && echo "$(basename "$(dirname "$i")")=$(sha "$i")"; done; } )
+  changed=$(printf '%s\n%s\n' "$want" "$have" | grep . | sort | uniq -u | cut -d= -f1 | sort -u | tr '\n' ' ')
+  for s in $edited; do changed="$changed$s "; done
+fi
+for s in $edited; do rm -rf "$d/sources/$s"; echo "reingest: $s (file changed since ingest)"; done
+
+if [ -n "$changed" ]; then
+  n=1; while [ -e "$d/plan.$n.md" ] || [ -e "$d/lesson.$n" ]; do n=$((n + 1)); done
+  mv "$p" "$d/plan.$n.md"; [ ! -d "$d/lesson" ] || mv "$d/lesson" "$d/lesson.$n"
+  rm -rf "$d/work"
+  echo "archived: plan.$n.md lesson.$n (changed: ${changed% })"
+fi
+
+for s in $moved; do
+  i=$d/sources/$s/index.md
+  sed -i.bak '2,/^---$/ s/^status:.*/status: failed\
+reason: file moved/' "$i" && rm -f "$i.bak"
+  echo "moved: $s $(fmkey "$i" origin)"
+  [ -f "$p" ] || continue
+  # live plan: keep its inputs current and fail the pending units that slice this source
+  sed -i.bak "s/\\($s: sha256:\\)[0-9a-f]*/\\1$(sha "$i")/" "$p" && rm -f "$p.bak"
+  awk -v s="$s" '{ b[NR] = $0 } /^## u[0-9]+$/ { st = NR } { blk[NR] = st }
+    /^slices:/ && index($0, s "#") { hit[st] = 1 }
+    END { for (i = 1; i <= NR; i++) { l = b[i]
+      if (blk[i] && hit[blk[i]] && l ~ /^status:[ \t]*pending/) l = "status: failed: source " s " moved"
+      print l } }' "$p" > "$p.new" && mv "$p.new" "$p"
+done
+
+if [ -f "$p" ]; then
+  ids=""
+  for u in $(pending "$p"); do rm -rf "${d:?}/work/$u"; ids="$ids $u"; done
+  if [ -n "$ids" ]; then echo "resume: units$ids"; else echo "resume: done"; fi
+  exit 0
+fi
+miss=""; k=$(fmkey "$d/brief.md" sources | sed 's/^\[//; s/\]$//' | awk -F', ' '{ print NF }'); i=1
+while [ "$i" -le "$k" ]; do [ -f "$d/sources/s$i/index.md" ] || miss="$miss s$i"; i=$((i + 1)); done
+if [ -n "$miss" ]; then echo "resume: ingest$miss"; else echo "resume: router"; fi
