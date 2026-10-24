@@ -21,16 +21,16 @@ Brief template and footer parsing: ${CLAUDE_PLUGIN_ROOT}/skills/learn/dispatch.m
 
 ## Tracer scope
 
-Built so far: topic in, one text unit out. Not built yet (later tickets): the diagnostic ladder, preflight, URL/PDF/file sources and large-source ingest, other modes, the plan gate and amend pass, subagent dispatch, the failure re-dispatch, hash-change archiving, the comprehension check. Where a step below says "later", skip it and say nothing.
+Built so far: topic in, one text unit out. Not built yet (later tickets): the diagnostic ladder, preflight, PDF sources and large-source ingest, other modes, the plan gate and amend pass, subagent dispatch, the failure re-dispatch, hash-change archiving, the comprehension check. Where a step below says "later", skip it and say nothing.
 
 ## Sequence
 
 1. **Classify the argument.** An exact folder-name match under `./learn-anything/` resumes that lesson (step 2). Anything else (topic, URL, path, or nothing) starts a new lesson: invoke `learn-anything:intake` with the argument as first input.
 2. **Resume.** State is the files. Continue at the first missing artifact, in order: `brief.md` (restart intake), `sources/sN/index.md` for each source in the brief, `plan.md`, units still `pending`. A `done` or `degraded` unit is never re-run; a `pending` unit re-runs from scratch (clear its `work/<unit-id>/` first).
-3. **Ingest.** For each source in the brief's `sources` (in order, ids `s1`, `s2`), invoke `learn-anything:ingest` with the lesson folder, the source entry and its id. If a source fails and none is left, stop and say so; never fall back to an ungrounded topic.
+3. **Ingest.** For each source in the brief's `sources` (in order, ids `s1`, `s2`), invoke `learn-anything:ingest` with the lesson folder, the source entry and its id; it replies `sN: ok` or `sN: failed - <reason>`. A failed source is noted (id, entry, reason) and the others continue. If every source failed, stop and tell the learner each reason; never fall back to an ungrounded topic and never run the router.
 4. **Router.** Invoke `learn-anything:router` with the lesson folder; it writes `plan.md`.
 5. **Plan gate.** Skip it when the plan is exactly one unit at tier 0 (always, in the tracer). Otherwise later.
 6. **Dispatch units** in plan order. A one-unit plan runs inline: invoke `learn-anything:text` (the unit's mode skill) yourself with the brief from `dispatch.md` as its args. Subagents later. Parse the footer; set the unit's `status:` in `plan.md` from `status`, add `artifact: <path>` to its block, print one progress line. Delete `work/<unit-id>/` on `done` (`rm -rf`). Do the `plan.md` edit before anything else.
 7. **Failure.** On `failed` or a missing footer, record `failed: <reason>` in the plan and report it. Re-dispatch straight to text comes later.
 8. **Check.** Later.
-9. **Close.** List the artifacts by path and any `degraded` or `failed` units with reasons. Surface footer notes only for `short=`, `rendered=none` and `ungrounded=true` (say the lesson is written from general knowledge, not a source).
+9. **Close.** List the artifacts by path, any failed sources with reasons, and any `degraded` or `failed` units with reasons. Surface footer notes only for `short=`, `rendered=none` and `ungrounded=true` (say the lesson is written from general knowledge, not a source).

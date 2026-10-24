@@ -15,7 +15,7 @@ Shaping: ${CLAUDE_PLUGIN_ROOT}/shared/shaping.md. Footer: ${CLAUDE_PLUGIN_ROOT}/
 
 ## Procedure
 
-1. Read `brief.md` (depth, level, core, goal) and your unit's `## <unit>` block in `plan.md` (`focus`, `slices`, `size`). Read the chunk text file of each slice, one chunk at a time, never a whole source. A slice with no chunk file (an ungrounded topic) is taught from general knowledge.
+1. Read `brief.md` (depth, level, core, goal) and your unit's `## <unit>` block in `plan.md` (`focus`, `slices`, `size`). Read the chunk text file of each slice (the entry's path in that source's `index.md`, relative to the source folder `sources/<sN>/`), one chunk at a time, never a whole source. A slice with no chunk file (an ungrounded topic) is taught from general knowledge.
 2. Write `artifact` (create `lesson/` if needed), shaped by depth x level, to `size`: a target of ±15%. Count words before finishing; write less and say so with `short=<why>` rather than pad. `size` is the whole file, headings included.
 3. Return the footer. (Run inline, the conductor continues after it; the footer is not the end of the lesson.)
 

@@ -1,0 +1,27 @@
+<!doctype html><html><head><title>Initializing projects</title></head><body>
+<header><nav><a href="/">Home</a> <a href="/docs">Docs</a> <a href="/blog">Blog</a></nav></header>
+<main><article>
+<h1>Initializing projects</h1>
+<p>A project is a directory with a pyproject.toml file that records its metadata and dependencies. Creating one with uv takes a single command, and the generated layout is deliberately small so that you can read every file it produces without opening a tutorial first.</p>
+<h2>Creating an application</h2>
+<p>Applications and libraries differ in how they are packaged. An application is run by name from the command line and is not normally published, while a library is built into a wheel and uploaded to an index so that other projects can depend on it.</p>
+<div class="highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$ uv init example</span>
+<span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Initialized project `example` at `/home/user/example`</span>
+<span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>$ cd example</span>
+<span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>$ ls</span>
+<span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>main.py  pyproject.toml  README.md</span></code></pre></div>
+<h2>Creating a library</h2>
+<p>Pass the lib flag to get a src layout with a package directory, which keeps imports honest because the package is only importable once it has been installed into the environment.</p>
+<div class="highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$ uv init --lib example-lib</span>
+<span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>$ tree example-lib</span>
+<span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>example-lib</span>
+<span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>|-- pyproject.toml</span>
+<span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>`-- src/example_lib/__init__.py</span></code></pre></div>
+<h2>Adding a dependency</h2>
+<p>Dependencies are added with uv add, which edits pyproject.toml and updates the lockfile in one step so the two never drift apart.</p>
+<div class="highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$ uv add requests</span>
+<span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Resolved 5 packages in 120ms</span>
+<span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>Installed 5 packages in 8ms</span></code></pre></div>
+</article></main>
+<footer><a href="/privacy">Privacy</a> <a href="/terms">Terms</a></footer>
+</body></html>
