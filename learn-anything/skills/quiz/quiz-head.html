@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;color:#1b1b1b;background:#fafafa}
+h1{font-size:1.3rem}
+.meta{color:#666;font-size:.9rem}
+.q{white-space:pre-wrap;margin:1rem 0}
+button{font:inherit;padding:.5rem .9rem;margin:.25rem .25rem .25rem 0;border:1px solid #888;border-radius:6px;background:#fff;cursor:pointer}
+button:disabled{cursor:default}
+.ok{background:#d7f2dc}.no{background:#f7d4d4}
+textarea{width:100%;min-height:5rem;font:inherit;box-sizing:border-box}
+.card{border:1px solid #888;border-radius:10px;padding:1.5rem;background:#fff;cursor:pointer;white-space:pre-wrap}
+.ans{white-space:pre-wrap;background:#eef;padding:.75rem;border-radius:6px;margin:.75rem 0}
+.hidden{display:none}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ccc;padding:.4rem;text-align:left}
+</style>
+</head>
+<body>
+<h1>Quiz</h1>
+<p class="meta" id="progress"></p>
+<div id="item"></div>
+<div id="controls"></div>
+<div id="summary" class="hidden"></div>
+<script type="application/json" id="items">
