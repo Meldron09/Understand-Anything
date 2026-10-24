@@ -16,7 +16,7 @@ artifact: ./learn-anything/<slug>/lesson/u1-<mode>.<ext>
 Task: <the unit's focus sentence>. Write only the artifact and the work dir, spawn nothing, reply in at most 150 words ending with the footer.
 ```
 
-`slices` and `focus` are copied from the unit's block in `plan.md`; `.<ext>` is `md` for text.
+`slices` and `focus` are copied from the unit's block in `plan.md`; `.<ext>` is `md` for text and slides (a slides render lands beside it as `.html` / `.pdf`; only the `.md` is `artifact:`).
 
 ## Footer parsing
 

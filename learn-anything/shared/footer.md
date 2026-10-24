@@ -9,4 +9,4 @@ reason: <only on degraded or failed>
 notes: <comma-separated key=value; keys below>
 ```
 
-Notes keys: text `words=<n>`, `ungrounded=true`, `native_pages=<n>`, `short=<why>`. The conductor surfaces notes to the learner only for `short=`, `rendered=none` and `ungrounded=true`.
+Notes keys: text `words=<n>`, `ungrounded=true`, `native_pages=<n>`, `short=<why>`; slides `slides=<n>`, `rendered=html|pdf|none`, `math=raw`, `diagrams=raw`, `ungrounded=true`, `short=<why>`. The conductor surfaces notes to the learner only for `short=`, `rendered=none` and `ungrounded=true`.
