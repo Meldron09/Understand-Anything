@@ -25,20 +25,3 @@ The footer is the last block of the result (format in the shared footer file): l
 ## Size to words (for re-dispatch, later)
 
 Original size x the router's rate for the original mode gives minutes, then x 200 words per minute.
-
-## Large-source ingest (phase 2)
-
-Ingest cut the source (phase 1) and replied `sN: cut <index> - <k> chunks to summarize`. You spawn the summary agents; nothing else may write that `index.md` until the merge.
-
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/skills/ingest/scripts/merge-summaries ./learn-anything/<slug>/sources/<sN> --batches` prints one line of up to 5 chunk ids per batch.
-2. Spawn one `Agent` per line with `model: haiku`, at most 3 at a time. Prompt, with the real paths and ids:
-
-```
-Summarize chunks of one source, nothing else.
-index: ./learn-anything/<slug>/sources/<sN>/index.md
-chunks: c01 c02 c03 c04 c05
-For each id, find its entry in the index and read its text file (path relative to the source folder) with `head -c 3000`, never the whole file; with no text file use the title and pages.
-Write ./learn-anything/<slug>/work/ingest-<sN>/summaries-b<k>.txt, one line per id: `cNN | <summary, at most 25 words>`. Never edit index.md. Reply `done`.
-```
-
-3. When every agent has returned (a failed agent only loses its summaries), run `python3 ${CLAUDE_PLUGIN_ROOT}/skills/ingest/scripts/merge-summaries <source folder> ./learn-anything/<slug>/work/ingest-<sN>`, then `rm -rf` that work folder. Chunks without a summary get their title; the source is still `ok`.

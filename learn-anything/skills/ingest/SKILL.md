@@ -93,7 +93,7 @@ Exit 1 is `failed` with the script's message (`encrypted PDF`, `unreadable PDF: 
 `chunk` and `chunk-pdf` leave a line `SUMMARY` after each chunk entry to fill with at most 25 words. They print the totals; a source is small when `tokens` is at most about 20000 and it has at most about 15 pages, else large.
 
 - **Small:** read each chunk file once, replace each slot in `index.md` in place. Afterwards `grep -c '^SUMMARY$' index.md` must print 0.
-- **Large (two phases):** the cut above is phase 1 and is done. Write no summaries, spawn nothing; you are not the one to fan out. Reply `<sN>: cut <index path> - <k> chunks to summarize` (phase 2 is the conductor's, see `${CLAUDE_PLUGIN_ROOT}/skills/learn/dispatch.md`). Nothing but `merge-summaries` touches `index.md` after the cut. A large source with no `SUMMARY` slots (scanned PDF) is simply `ok`.
+- **Large (two phases):** the cut above is phase 1. Then follow `${CLAUDE_PLUGIN_ROOT}/skills/ingest/large.md` yourself, in this thread: `haiku` batch agents write summaries under `work/ingest-<sN>/`, `merge-summaries` merges them. A large source with no `SUMMARY` slots (scanned PDF) is simply `ok`.
 
 ## Failure
 
@@ -116,4 +116,4 @@ reason: <why, with the export hint when it applies>
 
 ## Reply
 
-One line: `<sN>: ok <index path>`, `<sN>: failed - <reason>`, or the large-source `cut` line. On `ok`, `rm -rf` the `work/ingest-<sN>` folder.
+One line: `<sN>: ok <index path>` or `<sN>: failed - <reason>`. On `ok`, `rm -rf` the `work/ingest-<sN>` folder.
