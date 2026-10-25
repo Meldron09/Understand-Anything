@@ -1,0 +1,47 @@
+#!/bin/sh
+# Render a unit's silent scene clips. POSIX sh. Run from anywhere; paths are <work-dir> relative.
+#   render clips <work> <ext> '<cmd>'   smoke-render s01 FIRST (failure stops everything, exit 3), then the
+#                                       rest `plan jobs` at a time. <cmd> runs under `sh -c` in <work> with
+#                                       $ID (s02), $SCENE (scenes/s02.<ext>) and $OUT (clips/s02.mp4) set and
+#                                       must leave a non-empty $OUT. Prints `rendered=<n>` and, on any failure,
+#                                       `failed=s03,s05` (exit 1).
+#   render sheet <work>                 clips/*.mp4 to one contact-sheet image <work>/contact.png (needs ffmpeg)
+here=$(cd "$(dirname "$0")" && pwd)
+cmd=${1:-}; [ $# -eq 0 ] || shift
+
+one() { # one <work> <ext> <cmd> <id>: render one scene; success = non-empty clip
+  w=$1 ext=$2 c=$3 id=$4
+  mkdir -p "$w/clips"
+  ( cd "$w" && ID=$id SCENE=scenes/$id.$ext OUT=clips/$id.mp4 sh -c "$c" >"clips/$id.log" 2>&1 ) && [ -s "$w/clips/$id.mp4" ]
+}
+
+case $cmd in
+  one) one "$@" ;;
+  clips)
+    w=${1:?work} ext=${2:?ext} c=${3:?cmd}
+    ids=$(ls "$w"/scenes/s*."$ext" 2>/dev/null | sed 's|.*/||; s|\..*||')
+    [ -n "$ids" ] || { echo "render: no scenes in $w/scenes"; exit 1; }
+    first=$(echo "$ids" | head -n 1)
+    one "$w" "$ext" "$c" "$first" || { echo "smoke-failed=$first"; exit 3; }
+    rest=$(echo "$ids" | sed 1d)
+    if [ -n "$rest" ]; then
+      echo "$rest" | xargs -P "$(sh "$here/plan" jobs)" -I{} sh "$0" one "$w" "$ext" "$c" {} || :
+    fi
+    n=0; bad=""
+    for id in $ids; do
+      if [ -s "$w/clips/$id.mp4" ]; then n=$((n + 1)); else bad="$bad,$id"; fi
+    done
+    echo "rendered=$n"
+    [ -z "$bad" ] || { echo "failed=${bad#,}"; exit 1; } ;;
+  sheet)
+    w=${1:?work}
+    command -v ffmpeg >/dev/null 2>&1 || { echo "render: ffmpeg missing"; exit 4; }
+    rm -rf "$w/sheet"; mkdir -p "$w/sheet"
+    for c in "$w"/clips/s*.mp4; do
+      id=$(basename "$c" .mp4)
+      ffmpeg -y -loglevel error -ss 0.5 -i "$c" -frames:v 1 "$w/sheet/$id.png" || :
+    done
+    ffmpeg -y -loglevel error -framerate 1 -i "$w/sheet/s%02d.png" -vf "scale=480:-1,tile=4x4" -frames:v 1 "$w/contact.png" &&
+      echo "$w/contact.png" ;;
+  *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+esac
