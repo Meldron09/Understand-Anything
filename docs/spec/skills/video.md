@@ -4,7 +4,7 @@
 
 **Description:** `Internal learn-anything step, not for direct use: produce a narrated video lesson unit from scene scripts. Runs in a unit subagent; spawns none.`
 
-**Files:** `SKILL.md` (at most 120 lines: the flow, a shared style block, degradation), `narrate.md`, `assemble.md`, `refs/manim.md`, `refs/hyperframes.md`. The renderer table is [`shared/renderers.md`](../shared.md).
+**Files:** `SKILL.md` (at most 120 lines: the flow, a shared style block, degradation), `narrate.md`, `assemble.md`, `refs/manim.md`, `refs/hyperframes.md`, and `scripts/` (`plan`, `narrate`, `render`, `assemble`: tier-2 POSIX `sh`; `kokoro.py`: PEP 723 Python, pinned `kokoro-onnx`), each run by its full `${CLAUDE_PLUGIN_ROOT}/skills/video/scripts/<name>` path. `plan gate <renderer> <lesson>` re-runs `scripts/preflight` on the lesson folder before each render. `timing.json` records the `voice` (`kokoro | say | none`) and its `speaker`. The renderer table is [`shared/renderers.md`](../shared.md).
 
 ## Concepts
 

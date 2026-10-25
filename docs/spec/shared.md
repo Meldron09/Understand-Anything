@@ -1,6 +1,6 @@
-# Shared files (`shared/`) and shared scripts (`scripts/`)
+# Shared files (`shared/`) and plugin-level scripts (`scripts/`)
 
-Read or run by two or more skills (placement rule in [SPEC.md](SPEC.md#2-plugin-layout-relative-to-the-plugin-root)). Referenced from each `SKILL.md` as `${CLAUDE_PLUGIN_ROOT}/shared/<file>`, one level deep.
+Read or run by two or more skills, or run by the conductor and router on `plan.md` (placement rule in [SPEC.md](SPEC.md#2-plugin-layout-relative-to-the-plugin-root)). Referenced from each `SKILL.md` as `${CLAUDE_PLUGIN_ROOT}/shared/<file>`, one level deep.
 
 ## `shared/shaping.md` (text, slides, interactive, quiz)
 
@@ -66,10 +66,21 @@ Tier-0 `sh`. Prints a compact JSON to stdout and writes `preflight.md` (to the l
 
 Tier-0 `sh` taking an HTML path. Rules: no external URLs (`http://` or `https://` in `src`/`href`/`url()`), balanced `<script>` tags, every `getElementById` target exists, the ready marker (`data-ready` attribute set by the runtime) is present in the source. Prints one line per violation; non-zero exit on any. When `preflight.md` reports a headless Chromium, also runs `--dump-dom` and requires `data-ready` on `<body>`; otherwise the caller adds `not browser-tested` to the footer notes.
 
-## `scripts/pdf-pages` (text, slides)
+## `scripts/pdf-pages` (text)
 
 Tier-1 `uv` script (pypdf): `pdf-pages <pdf> <first>-<last> <out.pdf>` copies at most 3 pages into a small PDF, which the skill then reads natively whole. This enforces the cap of 3 native pages per unit and needs no poppler (a `Read` with `pages` does).
 
 ## `scripts/lint-skills`
 
 Tier-0 `sh` run in CI and before release: SKILL.md line caps (table in SPEC.md), 200 hard ceiling, reference files over about 120 lines, hidden-description length (at most 250 characters), the `Internal learn-anything step, not for direct use:` prefix and the closing phrase, `user-invocable: false` on hidden skills and `disable-model-invocation: true` on `learn` only, and that every `${CLAUDE_PLUGIN_ROOT}/...` path named in a `SKILL.md` exists.
+
+## Conductor and router scripts
+
+All tier-0 `sh` (POSIX utilities only, see SPEC.md section 2), printing plain lines the caller copies or acts on, so the model never computes them. Their tests are in `tests/<name>/run.sh`.
+
+- **`scripts/plan-gate <lesson-dir> [--data-dir <dir>]`** (conductor): one line per unit, a `totals:` line, `links:` and `consent:` lines, and a last line `gate: skip | show | refuse (<why>)`. Refuses more than 8 units or 5 video minutes or a plan marked `over-cap:`; skips exactly one tier-0 unit; sums download size from `preflight.md` plus the kokoro weights.
+- **`scripts/plan-unit set <plan.md> <unit> <status> [artifact]` / `report <plan.md>` / `next <plan.md>`** (conductor, the only writer of `plan.md`): records a unit's status, lists degraded or failed units for the close, and prints the next dispatch round (the first at most 3 `pending` ids in plan order). `set` collapses a repeated `degraded: ` so a video reason that already carries it is recorded once.
+- **`scripts/plan-size <budget> <mode>...`** (router): one `<mode>` argument per planned unit. Prints `planned: N` (90% of the budget, the rest is the check), then `uN <mode> <size>` in plan order (explainer modes first in the order text, slides, interactive, video, then quiz; same-mode units in input order) and `over-cap: <why>` for more than 8 units or 5 video minutes. The budget is split equally across units (never given whole to each) at the rates text 200 words/min, slides 1.5 min/slide (at least 3), interactive 5 min/widget (1 to 5), quiz 0.5 min/item, video 1 min per minute (at least 1); a tiny budget can overshoot through the minimums.
+- **`scripts/renderer-pick <renderers.md> <row> [preflight.md]`** (router): the `renderer:` and `tier:` lines for a video unit, plus `downgraded:` or `predicted:` from the preflight probes.
+- **`scripts/resume-check match <arg> | list | <lesson-dir>`** (conductor): classifies the argument, lists unfinished lessons (no plan yet, a pending unit, or every unit finished with `check.md` missing), and on resume archives a stale plan, clears pending work and prints `resume: intake | ingest sN.. | router | units uN.. | done`.
+- **`scripts/degrade-words "<size>"`** (conductor): converts a unit's size to the words of its text re-dispatch (`2 min` is 400 words).

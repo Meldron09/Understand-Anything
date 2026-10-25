@@ -4,7 +4,7 @@
 
 **Description:** `Internal learn-anything step, not for direct use: normalize one source (topic, URL, PDF, file) into a source doc with a chunk index. Spawns subagents.`
 
-**Files:** `SKILL.md` (at most 120 lines) and `scripts/` (single-file Python, pinned PEP 723 dependencies, run with `uv run`): `fetch-url`, `chunk`, `chunk-pdf`, `merge-summaries`, plus `shasum` for hashes.
+**Files:** `SKILL.md` (at most 120 lines) and `scripts/` (single-file Python): `fetch-url` and `chunk-pdf` carry pinned PEP 723 dependencies and run with `uv run --script`; `chunk` and `merge-summaries` use the standard library only and run with `python3`, so a local text file needs no `uv`; plus `shasum` for hashes.
 
 ## Inputs accepted
 
