@@ -11,13 +11,13 @@ Turn `brief.md` and each source's `index.md` into the content of `plan.md`. Read
 
 ## Tracer scope
 
-Not built yet: other modes, renderers and `renderers.md`, tier prediction beyond slides, multi-unit slicing. Plan exactly one unit (text, quiz, slides or interactive), whose slices may come from several sources.
+Not built yet: the HyperFrames renderer and `renderers.md` (every video unit takes `renderer: manim` for now), tier prediction beyond slides, multi-unit slicing. Plan exactly one unit (text, quiz, slides, interactive or video), whose slices may come from several sources.
 
 ## Rules
 
-- **Mode is binding.** Every mode in `brief.modes` gets a unit; never add or drop one. A mode other than `text`, `quiz`, `slides` or `interactive` is not supported yet: stop and tell the conductor.
+- **Mode is binding.** Every mode in `brief.modes` gets a unit; never add or drop one. A mode other than `text`, `quiz`, `slides`, `interactive` or `video` is not supported yet: stop and tell the conductor.
 - **Caps.** At most 8 units and 5 video minutes. Never shrink, merge or drop to fit: write the plan as sized and add frontmatter `over-cap: <units/minutes, one line>`; the conductor refuses it until the learner cuts.
-- **Sizing.** `planned` = 90% of `budget` in minutes (the rest is the check). Text rate is 200 words per minute, so `size` = `budget` x 180 words. Quiz rate is 0.5 minute per item, so `size` = `budget` x 1.8 items, rounded, written `N items` (`artifact` ends `.html`). Slides run 1.5 minutes per slide, so `size` = `budget` x 0.6 slides rounded down, at least 3 (goal slide, one concept, takeaways), written `6 slides`. Interactive rate is 5 minutes per widget, so `size` = `N widgets`, N = `planned` / 5 rounded down, at least 1, at most 5 (`artifact` ends `.html`).
+- **Sizing.** `planned` = 90% of `budget` in minutes (the rest is the check). Text rate is 200 words per minute, so `size` = `budget` x 180 words. Quiz rate is 0.5 minute per item, so `size` = `budget` x 1.8 items, rounded, written `N items` (`artifact` ends `.html`). Slides run 1.5 minutes per slide, so `size` = `budget` x 0.6 slides rounded down, at least 3 (goal slide, one concept, takeaways), written `6 slides`. Interactive rate is 5 minutes per widget, so `size` = `N widgets`, N = `planned` / 5 rounded down, at least 1, at most 5 (`artifact` ends `.html`). Video size is in minutes, so `size` = `planned` rounded down, at least 1, written `3 min` (the skill makes `round(60 x N / 20)` scenes); the unit also gets `renderer: manim`, `tier: 2` and an `artifact` ending `.mp4`.
 - **Slides prediction.** Slides are tier 0 with an optional render. If `preflight.md` exists and its `- marp: false; npx: false` probe line shows both missing (the script writes `- marp: <true|false>; npx: <true|false>`), add `predicted: unrendered` to the unit. Offer no install-or-downgrade choice for slides and never change the mode. No `preflight.md` or no such line: write no prediction.
 - **Sources.** Read every `sources/sN/index.md`; ignore one whose `status` is `failed` (it has no chunks, and the conductor reports it). Never read chunk text.
 - **Slices.** Name them from the chunk entries and their summaries (`s1#c01`, a contiguous run `s1#c01-c02` within one source). A unit lists slices from every source that covers its `focus`, as one list: `slices: [s1#c01-c02, s2#c04]`. Pick the fewest chunks that cover every `core:` concept, about 20000 tokens at most (the entries' token estimates). `focus` is one sentence covering every `core:` concept.
@@ -42,4 +42,4 @@ tier: 0
 status: pending
 ```
 
-One `## uN` block per unit in presentation order; ids are never renumbered. Optional fields (`renderer`, `downgraded:`, `artifact:`) come later; `predicted:` is written for slides only. Artifacts are `lesson/<unit-id>-<mode>.<ext>`, here `lesson/u1-text.md` (slides: `lesson/u1-slides.md`).
+One `## uN` block per unit in presentation order; ids are never renumbered. Optional fields (`renderer`, `downgraded:`, `artifact:`) come later; `predicted:` is written for slides only. Artifacts are `lesson/<unit-id>-<mode>.<ext>`, here `lesson/u1-text.md` (slides: `lesson/u1-slides.md`; video: `lesson/u1-video.mp4`).
