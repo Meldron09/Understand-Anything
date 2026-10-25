@@ -1,0 +1,41 @@
+#!/bin/sh
+# renderer-pick <renderers.md> <row 1-5> [preflight.md]: the renderer a video unit takes. POSIX sh + awk.
+# Prints the lines for the unit's block in plan.md:
+#   renderer: <name>
+#   tier: <n>
+#   downgraded: renderer <fallback> (<pick> needs <what>)   only when the pick's tier is missing and the fallback's is there
+#   predicted: <what> missing                               only when neither is usable (the pick is kept)
+# A tier is usable when preflight.md's probe lines show everything it needs (tier 2: uv, cairo, pkg-config; tier 3:
+# node 22+, headless chromium; both: ffmpeg). No preflight.md: the pick, with no prediction. Exit 2 on a bad row.
+rf=${1:?usage: renderer-pick <renderers.md> <row> [preflight.md]} row=${2:?row} pre=${3:-}
+set -- $(awk -F'|' -v r="$row" '$2 + 0 == r && $2 ~ /[0-9]/ { for (i = 3; i <= 6; i++) gsub(/^[ \t]+|[ \t]+$/, "", $i); print $4, $5, $6 }' "$rf")
+[ $# -eq 3 ] || { echo "renderer-pick: no row $row in $rf" >&2; exit 2; }
+pick=$1 fb=$2 tier=$3
+
+probe() { grep -q "$1" "$pre"; }
+missing() { # missing <tier>: what that tier lacks, comma separated
+  m=""
+  add() { m="${m:+$m, }$1"; }
+  probe '^- ffmpeg: true' || add ffmpeg
+  case $1 in
+    2) probe '^- uv: true' || add uv
+       probe '^- cairo: true' || add cairo
+       probe 'pkg-config: true' || add pkg-config ;;
+    3) probe '^- node 22+: true' || add "node 22+"
+       probe '^- headless chromium: true' || add "headless chromium" ;;
+  esac
+  printf '%s' "$m"
+}
+tier_of() { case $1 in manim) echo 2;; hyperframes) echo 3;; esac; }
+
+show() { echo "renderer: $1"; echo "tier: $2"; }
+[ -f "$pre" ] || { show "$pick" "$tier"; exit 0; }
+need=$(missing "$tier")
+[ -n "$need" ] || { show "$pick" "$tier"; exit 0; }
+if [ "$fb" != none ] && [ -z "$(missing "$(tier_of "$fb")")" ]; then
+  show "$fb" "$(tier_of "$fb")"
+  echo "downgraded: renderer $fb ($pick needs $need)"
+else
+  show "$pick" "$tier"
+  echo "predicted: $need missing"
+fi

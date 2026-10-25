@@ -5,6 +5,14 @@
 #                                       $ID (s02), $SCENE (scenes/s02.<ext>) and $OUT (clips/s02.mp4) set and
 #                                       must leave a non-empty $OUT. Prints `rendered=<n>` and, on any failure,
 #                                       `failed=s03,s05` (exit 1).
+#                                       An already rendered first clip skips the smoke render (re-run after the
+#                                       fallback renderer repaired a failed s01).
+#   render one <work> <ext> '<cmd>' <id>   render a single scene (a repair or a fallback-renderer rewrite)
+#   render blank <work> <id>            flat clip of the scene's D (timing.json) in the style block's background,
+#                                       as clips/<id>.mp4; records it in <work>/blank.txt and prints
+#                                       `degraded: <id> blank`. s01 is never blanked: `failed: s01 ...` (exit 3).
+#   render verdict <work>               `ok blank=<k>/<n>` (0), or `failed: <k> of <n> scenes blank` (1) when more
+#                                       than half are blank
 #   render sheet <work>                 clips/*.mp4 to one contact-sheet image <work>/contact.png (needs ffmpeg)
 here=$(cd "$(dirname "$0")" && pwd)
 cmd=${1:-}; [ $# -eq 0 ] || shift
@@ -12,7 +20,9 @@ cmd=${1:-}; [ $# -eq 0 ] || shift
 one() { # one <work> <ext> <cmd> <id>: render one scene; success = non-empty clip
   w=$1 ext=$2 c=$3 id=$4
   mkdir -p "$w/clips"
-  ( cd "$w" && ID=$id SCENE=scenes/$id.$ext OUT=clips/$id.mp4 sh -c "$c" >"clips/$id.log" 2>&1 ) && [ -s "$w/clips/$id.mp4" ]
+  rm -f "$w/clips/$id.mp4"
+  ( cd "$w" && ID=$id SCENE=scenes/$id.$ext OUT=clips/$id.mp4 sh -c "$c" >"clips/$id.log" 2>&1 ) && [ -s "$w/clips/$id.mp4" ] ||
+    { rm -f "$w/clips/$id.mp4"; return 1; }
 }
 
 case $cmd in
@@ -22,7 +32,7 @@ case $cmd in
     ids=$(ls "$w"/scenes/s*."$ext" 2>/dev/null | sed 's|.*/||; s|\..*||')
     [ -n "$ids" ] || { echo "render: no scenes in $w/scenes"; exit 1; }
     first=$(echo "$ids" | head -n 1)
-    one "$w" "$ext" "$c" "$first" || { echo "smoke-failed=$first"; exit 3; }
+    [ -s "$w/clips/$first.mp4" ] || one "$w" "$ext" "$c" "$first" || { echo "smoke-failed=$first"; exit 3; }
     rest=$(echo "$ids" | sed 1d)
     if [ -n "$rest" ]; then
       echo "$rest" | xargs -P "$(sh "$here/plan" jobs)" -I{} sh "$0" one "$w" "$ext" "$c" {} || :
@@ -33,6 +43,21 @@ case $cmd in
     done
     echo "rendered=$n"
     [ -z "$bad" ] || { echo "failed=${bad#,}"; exit 1; } ;;
+  blank)
+    w=${1:?work} id=${2:?scene id}
+    [ "$id" != s01 ] || { echo "failed: s01 failed on both renderers"; exit 3; }
+    command -v ffmpeg >/dev/null 2>&1 || { echo "render: ffmpeg missing"; exit 4; }
+    d=$(sed -n "s/.*\"id\":\"$id\",\"seconds\":\([0-9.][0-9.]*\).*/\1/p" "$w/timing.json")
+    [ -n "$d" ] || { echo "render: $id not in timing.json"; exit 1; }
+    mkdir -p "$w/clips"
+    ffmpeg -y -loglevel error -f lavfi -i "color=c=0x111827:s=1280x720:r=30:d=$d" -pix_fmt yuv420p "$w/clips/$id.mp4" || exit 1
+    grep -qx "$id" "$w/blank.txt" 2>/dev/null || echo "$id" >> "$w/blank.txt"
+    echo "degraded: $id blank" ;;
+  verdict)
+    w=${1:?work}
+    n=$(grep -c '"id":"s[0-9]' "$w/timing.json"); k=$(cat "$w/blank.txt" 2>/dev/null | grep -c .)
+    if [ $((k * 2)) -gt "$n" ]; then echo "failed: $k of $n scenes blank"; exit 1; fi
+    echo "ok blank=$k/$n" ;;
   sheet)
     w=${1:?work}
     command -v ffmpeg >/dev/null 2>&1 || { echo "render: ffmpeg missing"; exit 4; }
@@ -43,5 +68,5 @@ case $cmd in
     done
     ffmpeg -y -loglevel error -framerate 1 -i "$w/sheet/s%02d.png" -vf "scale=480:-1,tile=4x4" -frames:v 1 "$w/contact.png" &&
       echo "$w/contact.png" ;;
-  *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
