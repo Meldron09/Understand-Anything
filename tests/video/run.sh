@@ -1,11 +1,16 @@
 #!/bin/sh
-# Script-CLI and seam tests for the video mode (ticket 47): learn-anything/skills/video/scripts/{plan,narrate,
+# Script-CLI and seam tests for the video mode (tickets 47 and 48): learn-anything/skills/video/scripts/{plan,narrate,
 # render,assemble} under PATH-controlled fakes (no kokoro, say, ffmpeg or Manim needed, no model calls), plus
 # file/frontmatter checks that the skill and its wiring exist. Run: sh tests/video/run.sh
 # Acceptance criteria -> tests: AC1 "scene count / length" = plan scenes, plan check, plan storyboard;
 # AC2 "one process, durations baked" = narrate (kokoro: one uv call), plan bake; AC3 "smoke first, jobs,
 # contact sheet" = render clips, render sheet, plan jobs (the one repair pass is a SKILL.md step, seam-checked);
 # AC4 "hidden kokoro/say/ffmpeg" = narrate chain, plan gate; AC5 "tier-2 probes" = preflight cairo/pkg-config.
+# Ticket 48: T1 "router picks, downgrades with a note, predicts failure" = renderer-pick (row table, preflight.md);
+# T2 "failed scene -> fallback rewrite once -> blank, `degraded: sNN blank`" = render one/blank, plan gate <renderer>
+# fallback= (the rewrite itself is a SKILL.md step, seam-checked); T3 ">half blank or s01 failing on both -> failed"
+# = render verdict, render blank s01; T4 consent text = plan-gate (tests/plan-gate); HyperFrames pin, telemetry off,
+# frame streaming on = refs/hyperframes.md seam checks.
 here=$(cd "$(dirname "$0")" && pwd)
 pl=$here/../../learn-anything
 vs=$pl/skills/video/scripts
@@ -41,6 +46,7 @@ w=$4; mkdir -p "$w/audio"; s=""
 for f in "$w"/narration/s*.txt; do i=$(basename "$f" .txt); echo x > "$w/audio/$i.wav"; s="$s${s:+,
 }{\"id\":\"$i\",\"seconds\":${FAKE_SECS:-20.00}}"; done
 printf "{\"engine\":\"kokoro\",\"voice\":\"af_bella\",\"scenes\":[\n%s\n]}\n" "$s" > "$w/timing.json"';;
+      node) stub "$d" node 'echo v22.3.0';;
       pkg-config) stub "$d" pkg-config '[ "$1" = --exists ] && [ "$2" = cairo ]';;
       nproc) stub "$d" nproc 'echo "$FAKE_CORES"';;
       *) stub "$d" "$n";;
@@ -191,6 +197,90 @@ t "sheet: one frame per clip"         eq "$(ls "$tmp/r5/sheet" | wc -l | tr -d '
 t "sheet: tiles them"                 grep -q 'tile=4x4' "$LOG"
 t "sheet: no ffmpeg exits 4"          code 4 env PATH="$base" sh "$vs/render" sheet "$tmp/r5"
 
+# ---- T2: the gate is per renderer, and says whether the fallback is usable
+export PREFLIGHT_CHROME_APPS=
+hf=$(fakes ffmpeg ffprobe say uv pkg-config node chromium)
+o=$(PATH="$hf:$base" sh "$vs/plan" gate hyperframes)
+t "hyperframes gate: ok with node and chromium" has "$o" '^ok$'
+t "hyperframes gate: manim fallback usable"     has "$o" '^fallback=manim$'
+t "manim gate: no fallback"                     has "$(gate "$full")" '^fallback=none$'
+f=$(fakes ffmpeg node chromium); o=$(PATH="$f:$base" sh "$vs/plan" gate hyperframes)
+t "hyperframes without uv: ok"                  has "$o" '^ok$'
+t "hyperframes without uv: fallback none"       has "$o" '^fallback=none$'
+f=$(fakes ffmpeg node)
+t "hyperframes without chromium: names it"      has "$(PATH="$f:$base" sh "$vs/plan" gate hyperframes)" '^failed: hyperframes needs chromium$'
+f=$(fakes ffmpeg chromium)
+t "hyperframes without node 22: names it"       has "$(PATH="$f:$base" sh "$vs/plan" gate hyperframes)" '^failed: hyperframes needs node22$'
+f=$(fakes node chromium)
+t "hyperframes without ffmpeg: failed at once"  has "$(PATH="$f:$base" sh "$vs/plan" gate hyperframes)" '^failed: ffmpeg missing'
+
+# ---- T1: the router's renderer rule = scripts/renderer-pick over shared/renderers.md and preflight.md
+rp() { sh "$pl/scripts/renderer-pick" "$pl/shared/renderers.md" "$@"; }
+pf=$pl/scripts/preflight
+pfmd() { d=$(mktemp -d "$tmp/lesson.XXXXXX"); PATH="$1:$base" sh "$pf" "$d" >/dev/null; echo "$d/preflight.md"; }
+all=$(pfmd "$(fakes ffmpeg uv pkg-config node chromium)")
+t "all tiers: the pick (hyperframes, tier 3)"   eq "$(rp 3 "$all" | tr '\n' ' ')" "renderer: hyperframes tier: 3 "
+t "every hyperframes row picks hyperframes"     eq "$(for r in 3 4 5; do rp $r "$all" | head -n 1; done | sort -u)" "renderer: hyperframes"
+t "manim rows pick manim at tier 2"             eq "$(for r in 1 2; do rp $r "$all" | tr '\n' ' '; done)" "renderer: manim tier: 2 renderer: manim tier: 2 "
+t3off=$(pfmd "$(fakes ffmpeg uv pkg-config)")
+o=$(rp 4 "$t3off")
+t "pick's tier missing: the fallback, tier 2"   has "$o" '^renderer: manim$'
+t "downgrade carries the note"                  has "$o" '^downgraded: renderer manim (hyperframes needs node 22+, headless chromium)$'
+t "downgrade writes no prediction"              eq "$(printf '%s\n' "$o" | grep -c predicted)" 0
+t "manim row is not downgraded when tier 2 is there" eq "$(rp 1 "$t3off" | wc -l | tr -d ' ')" 2
+none=$(pfmd "$(fakes ffmpeg)")
+o=$(rp 5 "$none")
+t "neither tier: the pick is kept"              has "$o" '^renderer: hyperframes$'
+t "neither tier: failure predicted with the gaps" has "$o" '^predicted: node 22+, headless chromium missing$'
+t "neither tier: no downgrade"                  eq "$(printf '%s\n' "$o" | grep -c downgraded)" 0
+t "manim row without its tier: predicted, no fallback" has "$(rp 2 "$none")" '^predicted: uv, cairo, pkg-config missing$'
+nof=$(pfmd "$(fakes node chromium)")
+t "no ffmpeg: both tiers unusable, predicted"   has "$(rp 3 "$nof")" '^predicted: ffmpeg missing$'
+t "no preflight.md: the pick, no prediction"    eq "$(rp 3 "$tmp/none.md" | tr '\n' ' ')" "renderer: hyperframes tier: 3 "
+t "a row that does not exist fails"             code 2 sh "$pl/scripts/renderer-pick" "$pl/shared/renderers.md" 9
+
+# ---- T2: baking reaches an .html scene (DURATION line and data-duration)
+mkdir -p "$tmp/hs"
+printf '<div data-duration="0">\n<script>\nDURATION = 0\n</script>\n' > "$tmp/hs/s01.html"
+PATH=$base sh "$vs/plan" bake "$tmp/tb.json" "$tmp/hs" >/dev/null
+t "html scene: DURATION line baked"             grep -qx 'DURATION = 18.42' "$tmp/hs/s01.html"
+t "html scene: data-duration baked"             grep -q 'data-duration="18.42"' "$tmp/hs/s01.html"
+
+# ---- T2/T3: render blank and verdict
+mk "$tmp/b1"
+printf '{"engine":"kokoro","voice":"v","scenes":[\n{"id":"s01","seconds":18.42},\n{"id":"s02","seconds":21.07},\n{"id":"s03","seconds":19.00},\n{"id":"s04","seconds":20.00},\n{"id":"s05","seconds":20.00}\n]}\n' > "$tmp/b1/timing.json"
+: > "$LOG"; o=$(PATH="$full:$base" sh "$vs/render" blank "$tmp/b1" s03); rc=$?
+t "blank: prints the degraded line"             eq "$o" "degraded: s03 blank"
+t "blank: a clip of the scene's D exists"       sh -c "[ $rc -eq 0 ] && [ -s '$tmp/b1/clips/s03.mp4' ] && grep -q 'color=c=0x111827:s=1280x720:r=30:d=19.00' '$LOG'"
+t "blank: s03 recorded"                         grep -qx s03 "$tmp/b1/blank.txt"
+PATH="$full:$base" sh "$vs/render" blank "$tmp/b1" s03 >/dev/null
+t "blank: twice records it once"                eq "$(grep -c s03 "$tmp/b1/blank.txt")" 1
+o=$(PATH="$full:$base" sh "$vs/render" blank "$tmp/b1" s01); rc=$?
+t "s01 never blanks: failed, exit 3"            sh -c "[ $rc -eq 3 ] && printf '%s\n' '$o' | grep -qx 'failed: s01 failed on both renderers'"
+t "s01 never blanks: no clip made"              test ! -e "$tmp/b1/clips/s01.mp4"
+t "blank without ffmpeg: exit 4"                code 4 env PATH="$base" sh "$vs/render" blank "$tmp/b1" s02
+t "verdict: 1 of 5 blank is ok"                 eq "$(sh "$vs/render" verdict "$tmp/b1")" "ok blank=1/5"
+PATH="$full:$base" sh "$vs/render" blank "$tmp/b1" s04 >/dev/null
+t "verdict: 2 of 5 blank is ok"                 eq "$(sh "$vs/render" verdict "$tmp/b1")" "ok blank=2/5"
+PATH="$full:$base" sh "$vs/render" blank "$tmp/b1" s05 >/dev/null
+o=$(sh "$vs/render" verdict "$tmp/b1"); rc=$?
+t "verdict: 3 of 5 blank (more than half): failed" sh -c "[ $rc -eq 1 ] && printf '%s\n' '$o' | grep -qx 'failed: 3 of 5 scenes blank'"
+printf '{"engine":"kokoro","voice":"v","scenes":[\n{"id":"s01","seconds":10},\n{"id":"s02","seconds":10}\n]}\n' > "$tmp/b1/timing.json"; printf 's02\n' > "$tmp/b1/blank.txt"
+t "verdict: exactly half blank is not more than half" code 0 sh "$vs/render" verdict "$tmp/b1"
+rm "$tmp/b1/blank.txt"
+t "verdict: none blank"                         eq "$(sh "$vs/render" verdict "$tmp/b1")" "ok blank=0/2"
+
+# a scene that failed on the picked renderer is settled alone: render one, then the rest skip a finished s01
+mk "$tmp/b2"
+: > "$RL"; o=$(rc_ "$tmp/b2" 8 '[ $ID = s01 ] || { echo $ID >> $RL; echo c > $OUT; }'); rc=$?
+t "picked renderer fails s01: smoke-failed, exit 3, nothing else" sh -c "[ $rc -eq 3 ] && printf '%s\n' '$o' | grep -qx smoke-failed=s01 && [ ! -s '$RL' ]"
+t "failed render leaves no clip behind"         test ! -e "$tmp/b2/clips/s01.mp4"
+PATH="$base" sh "$vs/render" one "$tmp/b2" py 'echo c > $OUT' s01; rc=$?
+t "fallback rewrite of s01 renders with one"    sh -c "[ $rc -eq 0 ] && [ -s '$tmp/b2/clips/s01.mp4' ]"
+: > "$RL"; o=$(rc_ "$tmp/b2" 8 '[ $ID = s01 ] && exit 1; echo $ID >> $RL; [ $ID = s03 ] || echo c > $OUT'); rc=$?
+t "re-run skips the finished s01 smoke"         sh -c "! grep -qx s01 '$RL' && grep -qx s02 '$RL'"
+t "re-run names the scene that still fails"     sh -c "[ $rc -eq 1 ] && printf '%s\n' '$o' | grep -qx failed=s03 && printf '%s\n' '$o' | grep -qx rendered=4"
+
 # ---- assembly: normalise to D, sentence captions from D, soft track only when the probe allows
 aw=$tmp/aw; mkdir -p "$aw/clips" "$aw/audio" "$aw/narration"
 printf 'Hello there. How are you today?\n' > "$aw/narration/s01.txt"
@@ -260,10 +350,26 @@ for k in 'plan gate' 'plan scenes' 'plan storyboard' 'narrate' 'plan check' 'pla
   t "SKILL.md wires '$k'"             grep -q "$k" "$sk/SKILL.md"
 done
 t "refs/manim.md names the render command" grep -q 'manim\[typst\]==' "$sk/refs/manim.md"
-t "router plans video units"          sh -c "grep -q 'renderer: manim' '$pl/skills/router/SKILL.md' && grep -q 'u1-video.mp4' '$pl/skills/router/SKILL.md'"
+t "router plans video units"          sh -c "grep -q 'renderer-pick' '$pl/skills/router/SKILL.md' && grep -q 'shared/renderers.md' '$pl/skills/router/SKILL.md' && grep -q 'u1-video.mp4' '$pl/skills/router/SKILL.md'"
 t "conductor invokes learn-anything:video" grep -q 'learn-anything:video' "$pl/skills/learn/SKILL.md"
 t "dispatch gives video an .mp4"      grep -q '`mp4` for video' "$pl/skills/learn/dispatch.md"
 t "footer lists the video notes keys" sh -c "grep -q 'video .scenes=<n>., .seconds=<n>., .captions=sidecar|soft|none., .narration=kokoro|say|none.' '$pl/shared/footer.md'"
+rf=$sk/refs/hyperframes.md
+t "refs/hyperframes.md exists"                  test -f "$rf"
+t "hyperframes is pinned to an exact version"   grep -Eq 'hyperframes@[0-9]+\.[0-9]+\.[0-9]+ render' "$rf"
+t "hyperframes render never uses @latest"       sh -c "! grep -q 'hyperframes@latest' '$rf'"
+t "hyperframes render has telemetry off"        grep -q 'HYPERFRAMES_NO_TELEMETRY=1.*npx' "$rf"
+t "hyperframes render has frame streaming on"   grep -q 'HF_CAPTURE_PARALLEL_STREAM=true.*npx' "$rf"
+t "hyperframes install lives in the data dir"   grep -q 'npm_config_cache=<data>/npm' "$rf"
+rr=$pl/shared/renderers.md
+t "renderers.md has five rows"                  eq "$(grep -c '^| [1-5] |' "$rr")" 5
+t "three rows pick hyperframes and fall back to manim" eq "$(grep -c '| hyperframes | manim | 3 |' "$rr")" 3
+t "two rows pick manim with no fallback"        eq "$(grep -c '| manim | none | 2 |' "$rr")" 2
+for k in 'render one' 'render blank' 'render verdict' 'plan gate <renderer>' 'refs/hyperframes.md' 'fallback=manim'; do
+  t "SKILL.md wires '$k'"                       grep -q "$k" "$sk/SKILL.md"
+done
+t "gate step prints the consent line"           grep -q 'consent:' "$pl/skills/learn/gate.md"
+t "gate passes the data dir for the kokoro check" grep -q -- '--data-dir ${CLAUDE_PLUGIN_DATA}' "$pl/skills/learn/gate.md"
 t "plugin lint passes"                sh "$pl/scripts/lint-skills"
 
 [ "$fails" -eq 0 ] && echo "all passed"
