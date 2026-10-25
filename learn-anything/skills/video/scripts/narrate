@@ -1,7 +1,7 @@
 #!/bin/sh
 # narrate <storyboard.md> <work-dir> --data-dir <dir>: narrate every scene with ONE voice and measure it.
 # Writes <work>/narration/sNN.txt, <work>/audio/sNN.wav and <work>/timing.json, then prints
-# `engine=kokoro|say|none` (plus a `degraded: <reason>` line when it is not kokoro).
+# `voice=kokoro|say|none` (plus a `degraded: <reason>` line when it is not kokoro).
 # Chain: kokoro-onnx in one uv process, else `say` for ALL scenes (one voice), else none (no audio,
 # durations estimated at 2.5 words per second). Re-run after editing narration to re-synthesise.
 here=$(cd "$(dirname "$0")" && pwd)
@@ -15,7 +15,7 @@ sh "$here/plan" narration "$sb" "$w" || exit 1
 reset
 if have uv; then
   if uv run --script "$here/kokoro.py" "$w" --data-dir "$data" >&2 && [ -s "$w/timing.json" ]; then
-    echo "engine=kokoro"; exit 0
+    echo "voice=kokoro"; exit 0
   fi
   why="kokoro failed"
 else
@@ -34,7 +34,7 @@ if have say && have ffmpeg && have ffprobe; then
   done
   if [ "$ok" -eq 1 ]; then
     sh "$here/plan" timing say Samantha < "$w/audio/durations" > "$w/timing.json"
-    echo "engine=say"; echo "degraded: $why, narrated with say"; exit 0
+    echo "voice=say"; echo "degraded: $why, narrated with say"; exit 0
   fi
   why="$why, say failed"
 else
@@ -43,5 +43,5 @@ fi
 
 reset
 sh "$here/plan" estimate "$w"
-echo "engine=none"
+echo "voice=none"
 echo "degraded: no narration voice ($why), silent video with estimated durations and a narration script"

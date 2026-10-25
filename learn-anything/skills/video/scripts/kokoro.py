@@ -3,7 +3,7 @@
 # requires-python = ">=3.10,<3.14"
 # dependencies = ["kokoro-onnx==0.6.1"]
 # ///
-"""kokoro.py <work-dir> --data-dir <dir> [--voice af_bella]
+"""kokoro.py <work-dir> --data-dir <dir> [--speaker af_bella]
 
 Narrate every <work>/narration/sNN.txt in this ONE process (the model loads once) into
 <work>/audio/sNN.wav and write <work>/timing.json (same format as `plan timing`). Model files
@@ -22,18 +22,18 @@ FILES = ("kokoro-v1.0.onnx", "voices-v1.0.bin")
 ap = argparse.ArgumentParser()
 ap.add_argument("work")
 ap.add_argument("--data-dir", required=True)
-ap.add_argument("--voice", default="af_bella")
+ap.add_argument("--speaker", default="af_bella")
 a = ap.parse_args()
 work, mdir = Path(a.work), Path(a.data_dir) / "kokoro"
 mdir.mkdir(parents=True, exist_ok=True)
 for f in FILES:
     if not (mdir / f).exists():
         urllib.request.urlretrieve(BASE + f, mdir / f)
-engine = Kokoro(str(mdir / FILES[0]), str(mdir / FILES[1]))
+tts = Kokoro(str(mdir / FILES[0]), str(mdir / FILES[1]))
 (work / "audio").mkdir(exist_ok=True)
 scenes = []
 for t in sorted((work / "narration").glob("s*.txt")):
-    samples, rate = engine.create(t.read_text().strip(), voice=a.voice, speed=1.0, lang="en-us")
+    samples, rate = tts.create(t.read_text().strip(), voice=a.speaker, speed=1.0, lang="en-us")
     with wave.open(str(work / "audio" / f"{t.stem}.wav"), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -41,4 +41,4 @@ for t in sorted((work / "narration").glob("s*.txt")):
         w.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
     scenes.append({"id": t.stem, "seconds": round(len(samples) / rate, 2)})
 body = ",\n".join(json.dumps(s, separators=(",", ":")) for s in scenes)
-(work / "timing.json").write_text('{"engine":"kokoro","voice":"%s","scenes":[\n%s\n]}\n' % (a.voice, body))
+(work / "timing.json").write_text('{"voice":"kokoro","speaker":"%s","scenes":[\n%s\n]}\n' % (a.speaker, body))

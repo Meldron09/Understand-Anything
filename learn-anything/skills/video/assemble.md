@@ -8,11 +8,11 @@
 2. Concatenate the parts with the concat demuxer (identical codecs by construction).
 3. Write `<out>.srt`, the sidecar: sentence-level captions, each scene's D shared among its sentences in proportion to words, scene offsets the running sum of D. No aligner, no burn-in.
 4. Soft captions: when `preflight.md` says `subtitles filter: true`, the SRT is also muxed as a `mov_text` track (`captions=soft`); otherwise the sidecar alone ships (`captions=sidecar`). The probe is the spec's gate for soft captions; whether `mov_text` also needs it is unknown pending a Mac spike.
-5. With engine `none` there is no audio track; `--script` writes the narration text per scene as `<out minus .mp4>.narration.md`, which is the learner's way to read what would have been said.
+5. With voice `none` there is no audio track; `--script` writes the narration text per scene as `<out minus .mp4>.narration.md`, which is the learner's way to read what would have been said.
 
 ## Output line
 
-`scenes=<n> seconds=<n> captions=soft|sidecar narration=<engine>`: copy it into the footer notes. Exit 1 names a missing clip; exit 4 means ffmpeg vanished since the gate (return `failed`).
+`scenes=<n> seconds=<n> captions=soft|sidecar narration=<voice>`: copy it into the footer notes. Exit 1 names a missing clip; exit 4 means ffmpeg vanished since the gate (return `failed`).
 
 ## Checks
 

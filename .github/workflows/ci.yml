@@ -19,7 +19,7 @@ jobs:
       - run: claude plugin validate --strict .
       # deterministic suites only: tests/{check,interactive,quiz,slides,tracer} and tests/ingest/e2e*.sh call `claude`
       - run: |
-          for t in lint-skills preflight plan-gate verify-html ingest resume degrade video; do
+          for t in lint-skills preflight plan-gate verify-html ingest resume degrade video router; do
             echo "== $t"
             sh tests/$t/run.sh || exit 1
           done

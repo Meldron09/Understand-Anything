@@ -8,8 +8,7 @@ dw=$pl/scripts/degrade-words
 pu=$pl/scripts/plan-unit
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
-eq() { [ "$1" = "$2" ]; }
+. "$here/../lib.sh"
 block() { sed -n "/^## $2\$/,/^\$/p" "$1"; }   # one unit's block
 
 # AC1: size conversion matches the spec examples; the other modes follow the router's rates
@@ -69,6 +68,11 @@ t "one status line per unit"         test "$(grep -c '^status:' "$p")" = 3
 sh "$pu" set "$p" u2 "degraded: item generation failed" lesson/u2-text.md
 t "re-record: a single artifact line" test "$(block "$p" u2 | grep -c '^artifact:')" = 1
 
+# a video unit's footer reason already carries `degraded:` lines: recorded once, not `degraded: degraded:`
+sh "$pu" set "$p" u1 "degraded: degraded: s03 blank; degraded: narrated with say" lesson/u1-video.mp4
+t "no doubled degraded prefix"       test "$(block "$p" u1 | grep '^status:')" = "status: degraded: s03 blank; narrated with say"
+sh "$pu" set "$p" u1 done lesson/u1-text.md
+
 # AC3: a re-dispatch that also fails is failed: <reason>, no artifact line added
 sh "$pu" set "$p" u3 "failed: text write failed"
 t "u3 status failed with reason"     test "$(block "$p" u3 | grep -c '^status: failed: text write failed$')" = 1
@@ -87,7 +91,7 @@ t "report on a clean plan: none"     eq "$(sh "$pu" report "$p")" none
 # a degraded unit is never re-run: resume-check does not count it as pending
 sh "$pu" set "$p" u2 "degraded: x" lesson/u2-text.md
 mkdir -p "$tmp/cwd/learn-anything/lsn"; cp "$p" "$tmp/cwd/learn-anything/lsn/plan.md"
-printf -- '---\nlesson: lsn\n---\n' > "$tmp/cwd/learn-anything/lsn/brief.md"
+printf -- '---\nlesson: lsn\n---\n' > "$tmp/cwd/learn-anything/lsn/brief.md"; echo 'declined: true' > "$tmp/cwd/learn-anything/lsn/check.md"
 t "degraded unit is not pending on resume" sh -c "cd '$tmp/cwd' && ! sh '$pl/scripts/resume-check' list | grep -q lsn"
 
 # seams: the conductor and text skills wire the scripts in, and the brief documents the table

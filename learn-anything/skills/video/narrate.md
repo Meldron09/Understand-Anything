@@ -13,24 +13,24 @@ narration: Before two computers talk, they agree on a starting point. ...
 
 Ids are `s01`, `s02`, ... in order. `narration:` may run over several lines until the next `idea:`, `visual:` or `##`. About 45 words per scene (about 20 seconds of speech); write for the ear: short sentences, spell out symbols and numbers as spoken, no markdown, no parentheses. The scene count is fixed by the unit's `size` (`round(seconds / 20)`, min 2, max 15), never by how much there is to say.
 
-## Engines (`scripts/narrate`)
+## Voices (`scripts/narrate`)
 
-One voice for the whole lesson, whatever the engine.
+One speaker for the whole lesson, whichever voice runs.
 
-| Engine | When | How |
+| Voice | When | How |
 |---|---|---|
-| `kokoro` | `uv` found and the run succeeds | `kokoro.py`, one `uv` process for every scene (the model loads once), voice `af_bella`, weights fetched once into `<data>/kokoro/` (about 350 MB; the plan gate's consent covers it) |
-| `say` | kokoro absent or failed, and `say`, `ffmpeg` and `ffprobe` found | every scene re-synthesised (never a mix), voice `Samantha`, converted to wav, measured with `ffprobe` |
+| `kokoro` | `uv` found and the run succeeds | `kokoro.py`, one `uv` process for every scene (the model loads once), speaker `af_bella`, weights fetched once into `<data>/kokoro/` (about 350 MB; the plan gate's consent covers it) |
+| `say` | kokoro absent or failed, and `say`, `ffmpeg` and `ffprobe` found | every scene re-synthesised (never a mix), speaker `Samantha`, converted to wav, measured with `ffprobe` |
 | `none` | no voice at all | no audio; durations estimated at 2.5 words per second; assembly writes a narration script beside the mp4 |
 
-The script prints `engine=<name>` and, for anything but kokoro, a `degraded: <reason>` line. Keep that line for the footer `reason:` and tell nobody to install anything beyond printing the command.
+The script prints `voice=<name>` and, for anything but kokoro, a `degraded: <reason>` line. Keep that line for the footer `reason:` and tell nobody to install anything beyond printing the command.
 
 ## Outputs (under `work/`)
 
 `narration/sNN.txt` (one scene each), `audio/sNN.wav`, and `timing.json`:
 
 ```
-{"engine":"kokoro","voice":"af_bella","scenes":[
+{"voice":"kokoro","speaker":"af_bella","scenes":[
 {"id":"s01","seconds":18.42},
 {"id":"s02","seconds":21.07}
 ]}
@@ -40,4 +40,4 @@ The script prints `engine=<name>` and, for anything but kokoro, a `degraded: <re
 
 ## Length check
 
-The sum of D must be within 25% of the unit's `size` in seconds: `sh $S/plan check "<size>" work/timing.json`. Outside it, rewrite the narration of every scene toward the target (about 2.5 words per second) and narrate once more. A second miss is accepted as is; never loop. Checked (ticket 49): both release URLs resolve (together about 354 MB, hence the consent's ~350 MB) and `kokoro-onnx==0.6.1` exists on PyPI. Unknowns pending a Mac spike: the `Kokoro(...).create(...)` call shape, real-time factor.
+The sum of D must be within 25% of the unit's `size` in seconds: `sh ${CLAUDE_PLUGIN_ROOT}/skills/video/scripts/plan check "<size>" work/timing.json`. Outside it, rewrite the narration of every scene toward the target (about 2.5 words per second) and narrate once more. A second miss is accepted as is; never loop. Checked (ticket 49): both release URLs resolve (together about 354 MB, hence the consent's ~350 MB) and `kokoro-onnx==0.6.1` exists on PyPI. Unknowns pending a Mac spike: the `Kokoro(...).create(...)` call shape, real-time factor.

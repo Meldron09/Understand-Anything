@@ -1,7 +1,8 @@
 #!/bin/sh
 # resume-check match <arg> | list | <lesson-dir>: the conductor's resume logic (docs/spec/skills/learn.md).
 #   match <arg>   exit 0 if <arg> is exactly a folder name under ./learn-anything/, else 1.
-#   list          one line per unfinished lesson (no plan yet, or a unit still pending).
+#   list          one line per unfinished lesson (no plan yet, a unit still pending, or every unit finished
+#                 but check.md missing).
 #   <lesson-dir>  compare plan.md `inputs` with the current brief.md and each index.md; any change (or a
 #                 local source edited since ingest) archives plan.md and lesson/ as plan.N.md and lesson.N/
 #                 (N = first free number), removes work/ and starts clean. A local source whose file moved
@@ -19,7 +20,8 @@ case $1 in
       [ -f "$d/brief.md" ] || continue
       if [ ! -f "$d/plan.md" ]; then echo "$(basename "$d") | no plan yet"; continue; fi
       n=$(pending "$d/plan.md" | wc -l | tr -d ' ')
-      [ "$n" -eq 0 ] || echo "$(basename "$d") | $n of $(grep -c '^## u' "$d/plan.md") units pending"
+      if [ "$n" -gt 0 ]; then echo "$(basename "$d") | $n of $(grep -c '^## u' "$d/plan.md") units pending"
+      elif [ ! -f "$d/check.md" ]; then echo "$(basename "$d") | check pending"; fi
     done; exit 0 ;;
 esac
 

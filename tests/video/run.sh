@@ -16,9 +16,7 @@ pl=$here/../../learn-anything
 vs=$pl/skills/video/scripts
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
-eq() { [ "$1" = "$2" ]; }
-has() { printf '%s\n' "$1" | grep -q -- "$2"; }
+. "$here/../lib.sh"
 lacks() { ! printf '%s\n' "$1" | grep -q -- "$2"; }
 code() { # code <want> <cmd...>: run quietly, compare exit status
   want=$1; shift; "$@" >/dev/null 2>&1; [ $? -eq "$want" ]; }
@@ -45,7 +43,7 @@ while [ $# -gt 0 ]; do [ "$1" = -o ] && o=$2; shift; done; echo x > "$o"';;
 w=$4; mkdir -p "$w/audio"; s=""
 for f in "$w"/narration/s*.txt; do i=$(basename "$f" .txt); echo x > "$w/audio/$i.wav"; s="$s${s:+,
 }{\"id\":\"$i\",\"seconds\":${FAKE_SECS:-20.00}}"; done
-printf "{\"engine\":\"kokoro\",\"voice\":\"af_bella\",\"scenes\":[\n%s\n]}\n" "$s" > "$w/timing.json"';;
+printf "{\"voice\":\"kokoro\",\"speaker\":\"af_bella\",\"scenes\":[\n%s\n]}\n" "$s" > "$w/timing.json"';;
       node) stub "$d" node 'echo v22.3.0';;
       pkg-config) stub "$d" pkg-config '[ "$1" = --exists ] && [ "$2" = cairo ]';;
       nproc) stub "$d" nproc 'echo "$FAKE_CORES"';;
@@ -100,7 +98,7 @@ t "narration split per scene"             eq "$(ls "$w/narration" | tr '\n' ' ')
 t "multi-line narration is joined"        eq "$(cat "$w/narration/s02.txt")" "One two three four five six."
 
 # ---- AC1: narrated total within 25% of size, else resync
-tj() { printf '{"engine":"kokoro","voice":"v","scenes":[\n{"id":"s01","seconds":%s},\n{"id":"s02","seconds":%s}\n]}\n' "$1" "$2" > "$tmp/tj.json"; }
+tj() { printf '{"voice":"kokoro","speaker":"v","scenes":[\n{"id":"s01","seconds":%s},\n{"id":"s02","seconds":%s}\n]}\n' "$1" "$2" > "$tmp/tj.json"; }
 ck() { tj "$1" "$2"; PATH=$base sh "$vs/plan" check "$3" "$tmp/tj.json"; }
 tj 60 60; t "120 vs 120: ok"        code 0 env PATH="$base" sh "$vs/plan" check 120 "$tmp/tj.json"
 tj 75 75; t "150 vs 120 (+25%): ok" code 0 env PATH="$base" sh "$vs/plan" check 120 "$tmp/tj.json"
@@ -123,7 +121,7 @@ t "no core count: 1 job"    eq "$(PATH=$base sh "$vs/plan" jobs)" 1
 mkdir -p "$tmp/sc"
 printf 'from manim import *\nDURATION = 0\nclass Clip(Scene): pass\n' > "$tmp/sc/s01.py"
 cp "$tmp/sc/s01.py" "$tmp/sc/s02.py"
-printf '{"engine":"kokoro","voice":"v","scenes":[\n{"id":"s01","seconds":18.42},\n{"id":"s02","seconds":21.07}\n]}\n' > "$tmp/tb.json"
+printf '{"voice":"kokoro","speaker":"v","scenes":[\n{"id":"s01","seconds":18.42},\n{"id":"s02","seconds":21.07}\n]}\n' > "$tmp/tb.json"
 PATH=$base sh "$vs/plan" bake "$tmp/tb.json" "$tmp/sc" >/dev/null
 t "s01 baked"                      grep -qx 'DURATION = 18.42' "$tmp/sc/s01.py"
 t "s02 baked"                      grep -qx 'DURATION = 21.07' "$tmp/sc/s02.py"
@@ -143,31 +141,41 @@ f=$(fakes ffmpeg uv); printf '#!/bin/sh\nexit 1\n' > "$f/pkg-config"; chmod +x "
 t "no cairo: names cairo"           has "$(gate "$f")" '^failed: manim needs cairo$'
 f=$(fakes ffmpeg pkg-config);       t "no uv: names uv"          has "$(gate "$f")" '^failed: manim needs uv$'
 
+# gate with a lesson dir refreshes its preflight.md (the probe is re-run before each render)
+mkdir -p "$tmp/lf"; PATH="$full:$base" sh "$vs/plan" gate manim "$tmp/lf" >/dev/null
+t "gate <renderer> <lesson>: rewrites <lesson>/preflight.md" grep -q '^# Preflight' "$tmp/lf/preflight.md"
+
+# the video skill's command lines are self-contained (shell state does not persist) and find the lesson's preflight.md
+vsk=$vs/../SKILL.md
+t "video SKILL.md: no \$S shorthand, every script command carries the plugin-root path" sh -c "! grep -q 'sh \\\$S/' '$vsk' && grep -q 'sh \${CLAUDE_PLUGIN_ROOT}/skills/video/scripts/assemble' '$vsk'"
+t "video SKILL.md: assemble gets the lesson's preflight.md, not the cwd's" sh -c "grep -q -- '--preflight <lesson>/preflight.md' '$vsk' && ! grep -q -- '--preflight preflight.md' '$vsk'"
+t "video narrate.md: no \$S shorthand" sh -c "! grep -q 'sh \\\$S/' '$vs/../narrate.md'"
+
 # ---- AC4: narration chain kokoro -> say -> none; AC2: all scenes in ONE uv process
 nar() { # nar <fakes dir> <work>: run narrate with that PATH, log fresh
   : > "$LOG"; PATH="$1:$base" sh "$vs/narrate" "$sb" "$2" --data-dir "$tmp/data" 2>/dev/null; }
 w=$tmp/n1; o=$(nar "$full" "$w")
-t "kokoro: engine=kokoro"           has "$o" '^engine=kokoro$'
+t "kokoro: voice=kokoro"           has "$o" '^voice=kokoro$'
 t "kokoro: no degraded line"        lacks "$o" '^degraded:'
 t "kokoro: ONE uv process for 3 scenes" eq "$(grep -c '^uv ' "$LOG")" 1
 t "kokoro: no say"                  eq "$(grep -c '^say ' "$LOG")" 0
-t "kokoro: timing.json written"     grep -q '"engine":"kokoro"' "$w/timing.json"
+t "kokoro: timing.json written"     grep -q '"voice":"kokoro"' "$w/timing.json"
 f=$(fakes ffmpeg ffprobe say); w=$tmp/n2; o=$(nar "$f" "$w")
-t "kokoro hidden (no uv): say"      has "$o" '^engine=say$'
+t "kokoro hidden (no uv): say"      has "$o" '^voice=say$'
 t "say fallback is announced"       has "$o" '^degraded: uv not found, narrated with say$'
 t "say: every scene synthesised"    eq "$(grep -c '^say ' "$LOG")" 3
 t "say: one voice for all scenes"   eq "$(grep '^say ' "$LOG" | grep -c -- '-v Samantha')" 3
-t "say: timing.json from measured durations" sh -c "grep -q '\"engine\":\"say\"' '$w/timing.json' && [ \$(grep -c '\"seconds\":10.50' '$w/timing.json') -eq 3 ]"
+t "say: timing.json from measured durations" sh -c "grep -q '\"voice\":\"say\"' '$w/timing.json' && [ \$(grep -c '\"seconds\":10.50' '$w/timing.json') -eq 3 ]"
 f=$(fakes ffmpeg ffprobe say uv); w=$tmp/n3; o=$(FAKE_UV_FAIL=1 nar "$f" "$w")
 t "kokoro failing falls back to say" has "$o" '^degraded: kokoro failed, narrated with say$'
 t "failed kokoro leaves no half-audio mix" eq "$(ls "$w/audio"/*.wav | wc -l | tr -d ' ')" 3
 f=$(fakes ffmpeg ffprobe); w=$tmp/n4; o=$(nar "$f" "$w")
-t "kokoro and say hidden: engine=none" has "$o" '^engine=none$'
+t "kokoro and say hidden: voice=none" has "$o" '^voice=none$'
 t "none: announced with the reason"    has "$o" '^degraded: no narration voice (uv not found, say unavailable), silent video'
 t "none: no audio files"               eq "$(ls "$w/audio" | wc -l | tr -d ' ')" 0
 t "none: estimated at 2.5 words/s"     sh -c "grep -q '\"id\":\"s01\",\"seconds\":2.40' '$w/timing.json'"   # 6 words
 f=$(fakes say ffprobe); w=$tmp/n5; o=$(nar "$f" "$w")
-t "ffmpeg hidden: say cannot convert, none" has "$o" '^engine=none$'
+t "ffmpeg hidden: say cannot convert, none" has "$o" '^voice=none$'
 
 # ---- AC3: smoke render first, then rest at min(2, cores/4); failures reported
 mk() { rm -rf "$1"; mkdir -p "$1/scenes"; for i in 01 02 03 04 05; do echo x > "$1/scenes/s$i.py"; done; }
@@ -248,7 +256,7 @@ t "html scene: data-duration baked"             grep -q 'data-duration="18.42"' 
 
 # ---- T2/T3: render blank and verdict
 mk "$tmp/b1"
-printf '{"engine":"kokoro","voice":"v","scenes":[\n{"id":"s01","seconds":18.42},\n{"id":"s02","seconds":21.07},\n{"id":"s03","seconds":19.00},\n{"id":"s04","seconds":20.00},\n{"id":"s05","seconds":20.00}\n]}\n' > "$tmp/b1/timing.json"
+printf '{"voice":"kokoro","speaker":"v","scenes":[\n{"id":"s01","seconds":18.42},\n{"id":"s02","seconds":21.07},\n{"id":"s03","seconds":19.00},\n{"id":"s04","seconds":20.00},\n{"id":"s05","seconds":20.00}\n]}\n' > "$tmp/b1/timing.json"
 : > "$LOG"; o=$(PATH="$full:$base" sh "$vs/render" blank "$tmp/b1" s03); rc=$?
 t "blank: prints the degraded line"             eq "$o" "degraded: s03 blank"
 t "blank: a clip of the scene's D exists"       sh -c "[ $rc -eq 0 ] && [ -s '$tmp/b1/clips/s03.mp4' ] && grep -q 'color=c=0x111827:s=1280x720:r=30:d=19.00' '$LOG'"
@@ -265,7 +273,7 @@ t "verdict: 2 of 5 blank is ok"                 eq "$(sh "$vs/render" verdict "$
 PATH="$full:$base" sh "$vs/render" blank "$tmp/b1" s05 >/dev/null
 o=$(sh "$vs/render" verdict "$tmp/b1"); rc=$?
 t "verdict: 3 of 5 blank (more than half): failed" sh -c "[ $rc -eq 1 ] && printf '%s\n' '$o' | grep -qx 'failed: 3 of 5 scenes blank'"
-printf '{"engine":"kokoro","voice":"v","scenes":[\n{"id":"s01","seconds":10},\n{"id":"s02","seconds":10}\n]}\n' > "$tmp/b1/timing.json"; printf 's02\n' > "$tmp/b1/blank.txt"
+printf '{"voice":"kokoro","speaker":"v","scenes":[\n{"id":"s01","seconds":10},\n{"id":"s02","seconds":10}\n]}\n' > "$tmp/b1/timing.json"; printf 's02\n' > "$tmp/b1/blank.txt"
 t "verdict: exactly half blank is not more than half" code 0 sh "$vs/render" verdict "$tmp/b1"
 rm "$tmp/b1/blank.txt"
 t "verdict: none blank"                         eq "$(sh "$vs/render" verdict "$tmp/b1")" "ok blank=0/2"
@@ -286,7 +294,7 @@ aw=$tmp/aw; mkdir -p "$aw/clips" "$aw/audio" "$aw/narration"
 printf 'Hello there. How are you today?\n' > "$aw/narration/s01.txt"
 printf 'One two three four.\n' > "$aw/narration/s02.txt"
 for i in 01 02; do echo c > "$aw/clips/s$i.mp4"; echo a > "$aw/audio/s$i.wav"; done
-printf '{"engine":"kokoro","voice":"v","scenes":[\n{"id":"s01","seconds":10.00},\n{"id":"s02","seconds":20.00}\n]}\n' > "$aw/timing.json"
+printf '{"voice":"kokoro","speaker":"v","scenes":[\n{"id":"s01","seconds":10.00},\n{"id":"s02","seconds":20.00}\n]}\n' > "$aw/timing.json"
 printf -- '- ffmpeg: true (subtitles filter: true)\n' > "$tmp/pf-yes.md"
 printf -- '- ffmpeg: true (subtitles filter: false)\n' > "$tmp/pf-no.md"
 asm() { : > "$LOG"; PATH="$full:$base" sh "$vs/assemble" "$aw" "$tmp/out.mp4" "$@"; }

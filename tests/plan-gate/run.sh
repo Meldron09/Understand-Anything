@@ -5,8 +5,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 pg=$here/../../learn-anything/scripts/plan-gate
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
-has() { printf '%s\n' "$1" | grep -q -- "$2"; }
+. "$here/../lib.sh"
 
 # plan <name> <block>...: a lesson dir whose plan.md holds the given unit blocks
 plan() {

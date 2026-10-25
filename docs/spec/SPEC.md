@@ -28,26 +28,28 @@ The conductor holds only paths, unit statuses and the brief's fields. The plan o
 README.md                      canonical tier table and per-mode degradation
 shared/                        read by 2+ skills
   shaping.md  footer.md  items.md  renderers.md
-scripts/                       run by 2+ skills, tier-0 POSIX sh
-  preflight  verify-html  lint-skills
+scripts/                       plugin-level helpers, POSIX sh unless noted (see Placement rule)
+  preflight  verify-html  lint-skills                          cross-skill / CI
+  plan-gate  plan-unit  plan-size  resume-check  renderer-pick  degrade-words   conductor and router, on plan.md
+  pdf-pages                                                    tier 1, PEP 723 Python (uv)
 skills/
   learn/        SKILL.md <=150 + dispatch.md      conductor, the only user-invocable skill
   intake/       SKILL.md <=150 + protocol.md + ladder.md
-  ingest/       SKILL.md <=120 + scripts/
+  ingest/       SKILL.md <=120 + large.md + scripts/{chunk,chunk-pdf,fetch-url,merge-summaries}
   router/       SKILL.md <=120
   check/        SKILL.md <=80
   text/         SKILL.md ~60
   slides/       SKILL.md ~60 + marp.md
   interactive/  SKILL.md <=100 + patterns.md + shell-head.html + shell-tail.html
   quiz/         SKILL.md <=100 + quiz-head.html + quiz-tail.html
-  video/        SKILL.md <=120 + narrate.md + assemble.md + refs/<renderer>.md
+  video/        SKILL.md <=120 + narrate.md + assemble.md + refs/<renderer>.md + scripts/{plan,narrate,render,assemble,kokoro.py}
 ```
 
-Placement rule: anything read or run by two or more skills lives in `shared/` (documents) or `scripts/` (executables); single-owner files stay beside their skill. No `agents/`, `hooks/`, `bin/` or `CLAUDE.md`. The conductor spawns a general-purpose subagent whose brief starts "invoke skill `learn-anything:<mode>`".
+Placement rule: a document read by two or more skills lives in `shared/`. `scripts/` holds executables that are cross-skill (`preflight`, `verify-html`, `pdf-pages`), run by CI (`lint-skills`), or run by the conductor or router on `plan.md` and the lesson folder, the seam between skills (`plan-gate`, `plan-unit`, `plan-size`, `resume-check`, `renderer-pick`, `degrade-words`); these have one main caller but belong to the flow, not to a mode skill. An executable that serves a single step or mode skill lives beside it in that skill's `scripts/` (ingest, video). Every script in the tree is listed in the tree above and described in [shared.md](shared.md) or its skill's spec. No `agents/`, `hooks/`, `bin/` or `CLAUDE.md`. The conductor spawns a general-purpose subagent whose brief starts "invoke skill `learn-anything:<mode>`".
 
 **Budgets** (defaults): line caps as in the tree, hard ceiling 200 for any `SKILL.md`; references at most about 120 lines (table of contents above 100); hidden descriptions at most 250 characters, starting `Internal learn-anything step, not for direct use:` and ending with exactly one of `Runs inline.` / `Spawns subagents.` / `Runs in a unit subagent; spawns none.`; the conductor's description puts the trigger first, carries a "not for" clause (quick factual questions) and ends `Runs inline and spawns subagents.`; invariants go in the first 5,000 tokens of a file (only that much of an invoked skill survives compaction). Each mode skill states its binary needs in one `compatibility` line. `user-invocable: false` on all hidden skills (not `disable-model-invocation`, which would hide them from the conductor); `disable-model-invocation: true` on `learn` only. `scripts/lint-skills` checks line caps, description lengths and template phrases; CI also runs `claude plugin validate --strict`.
 
-**Scripts:** tier-0 ones (`preflight`, `verify-html`, `lint-skills`, hash checks) are POSIX `sh` using only `grep`, `shasum`, `command -v`. Tier 1+ ones (URL fetch, PDF chunking, summary merge, narration) are single-file Python with pinned PEP 723 inline dependencies, run as `uv run`. No Node scripts; Node appears only as printed commands in `refs/hyperframes.md`. `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` are substituted in `SKILL.md` text but absent from the Bash environment, so every command line carries the substituted path, and scripts take `--data-dir`. Large downloads (kokoro weights, HyperFrames install) and the pinned `uv` environment live in `${CLAUDE_PLUGIN_DATA}`, never in the plugin directory or the lesson folder.
+**Scripts:** tier-0 ones (`preflight`, `verify-html`, `lint-skills`, `plan-gate`, `plan-unit`, `plan-size`, `resume-check`, `renderer-pick`, `degrade-words`) are POSIX `sh` that need nothing beyond the OS: `command -v`, `shasum` and the POSIX text utilities (`grep`, `sed`, `awk`, `cut`, `tr`, `sort`, `head`, `wc`, `mktemp`); no bash, `jq` or Python. Tier 1+ scripts split by what they need. Single-file Python with PEP 723 inline metadata and pinned dependencies, run as `uv run --script`: `fetch-url`, `chunk-pdf`, `pdf-pages`, `kokoro.py`. Python with the standard library only, run as `python3` so the text-file path needs no `uv` (they carry an empty PEP 723 header or none): `chunk`, `merge-summaries`. The tier-2 video scripts `plan`, `narrate`, `render` and `assemble` are POSIX `sh` that drive `uv`, `ffmpeg` and the renderer's own command, with the Python pieces kept in `kokoro.py`. No Node scripts; Node appears only as printed commands in `refs/hyperframes.md`. `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` are substituted in `SKILL.md` text but absent from the Bash environment, and shell state does not persist between calls, so every command line carries the full substituted path (no `S=...` shorthand), and scripts take `--data-dir`. Large downloads (kokoro weights, HyperFrames install) and the pinned `uv` environment live in `${CLAUDE_PLUGIN_DATA}`, never in the plugin directory or the lesson folder.
 
 ## 3. The lesson folder (learner's machine)
 

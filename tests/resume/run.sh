@@ -7,10 +7,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 rc=$here/../../learn-anything/scripts/resume-check
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
+. "$here/../lib.sh"
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
 last() { printf '%s\n' "$1" | tail -n 1; }
-has() { printf '%s\n' "$1" | grep -q -- "$2"; }
 key() { sed -n '2,/^---$/p' "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -n 1; }
 
 # mk <name>: cd into a scratch cwd holding lesson lsn with a local-file source s1 and a topic source s2;
@@ -89,6 +88,8 @@ t "no brief: intake" test "$(last "$(sh "$rc" $d)")" = "resume: intake"
 mk l; mkdir -p learn-anything/done-one
 printf -- '---\nlesson: d\n---\n' > learn-anything/done-one/brief.md
 printf -- '---\nlesson: d\n---\n## u1\nstatus: done\n' > learn-anything/done-one/plan.md
+printf -- 'declined: true\n' > learn-anything/done-one/check.md
+mkdir -p learn-anything/no-check; cp learn-anything/done-one/brief.md learn-anything/done-one/plan.md learn-anything/no-check/
 t "exact folder name matches" sh "$rc" match lsn
 t "a topic is not a folder" sh -c "! sh '$rc' match 'eigenvalues'"
 t "a path is not a folder name" sh -c "! sh '$rc' match ./learn-anything/lsn && ! sh '$rc' match learn-anything/lsn && ! sh '$rc' match .."
@@ -96,6 +97,7 @@ t "no argument does not match" sh -c "! sh '$rc' match ''"
 o=$(sh "$rc" list)
 t "list shows the unfinished lesson with counts" has "$o" '^lsn | 2 of 4 units pending'
 t "list omits the finished lesson" sh -c "! sh '$rc' list | grep -q done-one"
+t "list shows an all-done lesson whose check.md is missing" has "$o" '^no-check | check pending'
 
 [ "$fails" -eq 0 ] && echo "all passed"
 exit "$fails"

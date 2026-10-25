@@ -1,14 +1,17 @@
 #!/bin/sh
 # plan-unit set <plan.md> <unit> <status> [artifact]   record a unit's status (and artifact) in its block;
-#                                                      mode, size and every other line stay as written.
+#                                                      mode, size and every other line stay as written; a repeated
+#                                                      `degraded: ` inside a degraded reason is collapsed.
 # plan-unit report <plan.md>                           one line per degraded or failed unit, for the close:
 #                                                      `uN | mode | degraded: <reason> | <artifact>`; `none` if clean.
+# plan-unit next <plan.md>                             the next dispatch round: the ids of the first (at most 3)
+#                                                      `pending` units in plan order, one per line; nothing when none.
 # The conductor is plan.md's only writer; this is how it writes. POSIX sh + awk.
-cmd=$1 p=${2:?usage: plan-unit set <plan.md> <unit> <status> [artifact] | report <plan.md>}
+cmd=$1 p=${2:?usage: plan-unit set <plan.md> <unit> <status> [artifact] | report <plan.md> | next <plan.md>}
 [ -f "$p" ] || { echo "plan-unit: no $p" >&2; exit 2; }
 case $cmd in
   set)
-    u=${3:?unit} st=${4:?status}
+    u=${3:?unit} st=$(printf '%s' "${4:?status}" | sed 's/^degraded: degraded: /degraded: /; s/; degraded: /; /g')
     grep -q "^## $u\$" "$p" || { echo "plan-unit: no unit $u in $p" >&2; exit 2; }
     awk -v u="$u" -v st="$st" -v art="$5" '
       /^## u[0-9]+$/ { inb = ($2 == u) }
@@ -23,5 +26,7 @@ case $cmd in
       id != "" && /^status:/ { st = $0; sub(/^status:[ \t]*/, "", st) }
       id != "" && /^artifact:/ { art = $2 }
       END { flush(); if (!n) print "none" }' "$p" ;;
-  *) echo "usage: plan-unit set <plan.md> <unit> <status> [artifact] | report <plan.md>" >&2; exit 2 ;;
+  next)
+    awk '/^## u[0-9]+$/ { id = $2 } /^status:[ \t]*pending/ && id != "" && n < 3 { print id; n++ }' "$p" ;;
+  *) echo "usage: plan-unit set <plan.md> <unit> <status> [artifact] | report <plan.md> | next <plan.md>" >&2; exit 2 ;;
 esac

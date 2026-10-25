@@ -58,7 +58,7 @@ Caps: at most 8 units and 5 minutes of video per plan; an over-cap plan goes bac
 sh learn-anything/scripts/lint-skills learn-anything     # line caps, descriptions, paths
 claude plugin validate --strict learn-anything           # plugin manifest
 claude plugin validate --strict .                        # marketplace manifest
-for t in lint-skills preflight plan-gate verify-html ingest resume degrade video; do sh tests/$t/run.sh; done
+for t in lint-skills preflight plan-gate verify-html ingest resume degrade video router; do sh tests/$t/run.sh; done
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly these. The suites that call `claude` (check, interactive, quiz, slides, tracer, the ingest end-to-end scripts) are run by hand. Open items and the Mac measurement runbook: [`docs/spec/mac-spike.md`](../docs/spec/mac-spike.md).

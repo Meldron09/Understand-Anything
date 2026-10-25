@@ -73,7 +73,7 @@ Each is a pass/fail check; on failure fix the named file and record what changed
 
 | Item | How to check | If it fails, fix |
 |---|---|---|
-| kokoro API call shape (`Kokoro(model, voices).create(text, voice=, speed=, lang=)`) and real-time factor | `sh $S/narrate $W/storyboard.md $W --data-dir $DATA` on a 6-scene storyboard; expect `engine=kokoro`, no `degraded:`, playable wavs; time it for the real-time factor | `skills/video/scripts/kokoro.py` (release URLs and `kokoro-onnx==0.6.1` already verified) |
+| kokoro API call shape (`Kokoro(model, voices).create(text, voice=, speed=, lang=)`) and real-time factor | `sh $S/narrate $W/storyboard.md $W --data-dir $DATA` on a 6-scene storyboard; expect `voice=kokoro`, no `degraded:`, playable wavs; time it for the real-time factor | `skills/video/scripts/kokoro.py` (release URLs and `kokoro-onnx==0.6.1` already verified) |
 | `manim[typst]==0.22.0` installs and `MathTypst` exists | `UV_CACHE_DIR=$DATA/uv uv run --python 3.12 --with "manim[typst]==0.22.0" python -c "from manim import MathTypst"` (PyPI shows the pin and the `typst` extra; imports are untested) | `refs/manim.md` pin and the "use `MathTypst`" advice |
 | Manim output layout under `--media_dir` | after section 1, `find $W/media -name '*.mp4'`; the render command's `find ... ! -path '*partial_movie_files*' \| head -n 1` must pick the final 1280x720 30 fps clip | the render command in `refs/manim.md` |
 | Contact-sheet frame time `-ss 0.5` | `sh $S/render sheet $W`, open `$W/contact.png`; if the 0.5 s frames look empty (fade-in) every scene would trigger the repair pass | `render sheet` (`-ss`), `video/SKILL.md` step 7 |

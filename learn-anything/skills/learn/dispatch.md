@@ -22,7 +22,7 @@ Task: <the unit's focus sentence>. Write only the artifact and the work dir, spa
 
 One `Agent` call per unit: `subagent_type: general-purpose`, `description: "<unit-id> <mode>"`, `prompt:` the brief above, verbatim. Briefs hold paths and the task sentence only, never pasted source, plan or artifact text. Never set `run_in_background`: calls sent in one message run together and the message returns when all have finished.
 
-A round is the next up-to-3 `pending` units in plan order (never more than 3 calls in one message, and never a call while a round is open). After the round, parse the footers one unit at a time in plan order and write each unit's status and artifact into `plan.md` yourself; subagents write only their artifact and `work/<unit-id>/`, never the plan. A subagent that returns without a footer is `failed` (`no footer`) and the round still completes. Loop until `plan.md` has no `pending` unit, then go on to step 7 to 9.
+A round is what `plan-unit next plan.md` prints, the next up-to-3 `pending` units in plan order (never more than 3 calls in one message, and never a call while a round is open). After the round, parse the footers one unit at a time in plan order and write each unit's status and artifact into `plan.md` yourself; subagents write only their artifact and `work/<unit-id>/`, never the plan. A subagent that returns without a footer is `failed` (`no footer`) and the round still completes. Loop until `plan.md` has no `pending` unit, then go on to step 7 to 9.
 
 ## Footer parsing
 
