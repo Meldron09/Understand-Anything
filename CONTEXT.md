@@ -60,6 +60,10 @@ _Avoid_: segment, slide, shot
 **Storyboard**:
 A video unit's scene list: for each scene, its one idea, its narration and a one-line visual intent. The one place the narration lives, so a different renderer can redraw a scene without re-authoring it.
 
+**Voice**:
+What speaks a video unit's narration: `kokoro`, else `say`, else none (silent video plus a narration script). One speaker for the whole lesson. Recorded in `timing.json` and the footer's `narration=`.
+_Avoid_: engine, TTS engine
+
 **Comprehension check**:
 The short closing diagnostic that follows any lesson, sized from the learner brief's depth and time budget and graded against its level. Not a mode and not a lesson artifact: the learner doesn't pick it, and it never appears in the lesson plan.
 _Avoid_: test, exam, quiz (a quiz is a lesson artifact the learner chose)

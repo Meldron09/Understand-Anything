@@ -3,23 +3,23 @@
 # Normalise every clip to its measured duration D (trim or hold the last frame), add its narration,
 # concatenate, write sentence-level <out>.srt from D (proportional to words inside a scene), and add
 # a soft mov_text track when preflight.md says `subtitles filter: true` (else sidecar only; no burn-in).
-# With engine none (no audio) it also writes the narration script. Needs <work>/timing.json, clips/sNN.mp4,
-# narration/sNN.txt, audio/sNN.wav (unless engine none). Prints `scenes=<n> seconds=<n> captions=soft|sidecar
-# narration=<engine>`. Exit 1 on a missing clip, 4 without ffmpeg.
+# With voice none (no audio) it also writes the narration script. Needs <work>/timing.json, clips/sNN.mp4,
+# narration/sNN.txt, audio/sNN.wav (unless voice none). Prints `scenes=<n> seconds=<n> captions=soft|sidecar
+# narration=<voice>`. Exit 1 on a missing clip, 4 without ffmpeg.
 w=${1:?usage: assemble <work-dir> <out.mp4> [--preflight f] [--script f]} out=${2:?out.mp4}; shift 2
 pf=; script=
 while [ $# -gt 0 ]; do case $1 in --preflight) pf=$2; shift 2;; --script) script=$2; shift 2;; *) shift;; esac; done
 command -v ffmpeg >/dev/null 2>&1 || { echo "assemble: ffmpeg missing"; exit 4; }
 t=$w/timing.json
 pairs=$(sed -n 's/.*"id":"\(s[0-9][0-9]*\)","seconds":\([0-9.][0-9.]*\).*/\1 \2/p' "$t")
-engine=$(sed -n 's/.*"engine":"\([a-z]*\)".*/\1/p' "$t" | head -n 1)
+voice=$(sed -n 's/.*"voice":"\([a-z]*\)".*/\1/p' "$t" | head -n 1)
 [ -n "$pairs" ] || { echo "assemble: no scenes in $t"; exit 1; }
 
 mkdir -p "$w/parts"; : > "$w/parts/list.txt"
 n=0; total=0
 while read -r id d; do
   [ -s "$w/clips/$id.mp4" ] || { echo "assemble: missing clip $id"; exit 1; }
-  if [ "$engine" = none ]; then
+  if [ "$voice" = none ]; then
     ffmpeg -y -loglevel error -i "$w/clips/$id.mp4" -vf "scale=1280:720,fps=30,tpad=stop_mode=clone:stop_duration=$d" \
       -t "$d" -c:v libx264 -pix_fmt yuv420p -an "$w/parts/$id.mp4" || exit 1
   else
@@ -67,8 +67,8 @@ else
   ffmpeg -y -loglevel error -f concat -safe 0 -i "$w/parts/list.txt" -c copy "$out" || exit 1
 fi
 
-if [ "$engine" = none ] && [ -n "$script" ]; then
+if [ "$voice" = none ] && [ -n "$script" ]; then
   { echo "# Narration script"; echo
     for f in "$w"/narration/s*.txt; do echo "## $(basename "$f" .txt)"; echo; cat "$f"; echo; done; } > "$script"
 fi
-echo "scenes=$n seconds=$(awk -v a="$total" 'BEGIN { printf "%d", a + 0.5 }') captions=$caps narration=$engine"
+echo "scenes=$n seconds=$(awk -v a="$total" 'BEGIN { printf "%d", a + 0.5 }') captions=$caps narration=$voice"
