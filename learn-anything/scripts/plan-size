@@ -1,0 +1,33 @@
+#!/bin/sh
+# plan-size <budget-minutes> <mode>...: the router's deterministic split of the budget across units
+# (docs/spec/skills/router.md). One <mode> argument per unit (repeat a mode for several units of it).
+# Prints `planned: <N>` (90% of budget, rounded down), then one line per unit in plan order, explainer modes
+# first (text, slides, interactive, video) then quiz, input order within a mode: `uN <mode> <size>`, and
+# `over-cap: <why>` when the plan has more than 8 units or more than 5 video minutes. Each unit gets an equal
+# share of 90% of the budget; size = share x the mode's rate (rounded to whole units) and floored to
+# the mode's minimum (3 slides, 1 widget, 1 min, 1 item), so a tiny budget can overshoot. Exit 2 on a bad mode.
+# POSIX sh + awk.
+[ $# -ge 2 ] || { echo "usage: plan-size <budget> <mode>..." >&2; exit 2; }
+awk -v budget="$1" 'BEGIN {
+  nm = split("text slides interactive video quiz", order, " ")
+  for (i = 2; i < ARGC; i++) {
+    m = ARGV[i]
+    if (index(" text slides interactive video quiz ", " " m " ") == 0) { print "plan-size: unknown mode " m > "/dev/stderr"; exit 2 }
+    cnt[m]++; n++
+  }
+  pl = budget * 0.9; s = pl / n
+  print "planned: " int(pl)
+  for (k = 1; k <= nm; k++) for (j = 1; j <= cnt[order[k]]; j++) {
+    m = order[k]; id++
+    if (m == "text") size = int(s * 200 + 0.5) " words"
+    else if (m == "quiz") { q = int(s * 2 + 0.5); size = (q < 1 ? 1 : q) " items" }
+    else if (m == "slides") { q = int(s / 1.5); size = (q < 3 ? 3 : q) " slides" }
+    else if (m == "interactive") { q = int(s / 5); size = (q < 1 ? 1 : q > 5 ? 5 : q) " widgets" }
+    else { q = int(s); if (q < 1) q = 1; vm += q; size = q " min" }
+    print "u" id " " m " " size
+  }
+  w = ""
+  if (n > 8) w = n " units, cap 8"
+  if (vm > 5) w = (w == "" ? "" : w "; ") vm " video minutes, cap 5"
+  if (w != "") print "over-cap: " w
+}' "$@"
