@@ -21,7 +21,7 @@ Brief template and footer parsing: ${CLAUDE_PLUGIN_ROOT}/skills/learn/dispatch.m
 
 ## Tracer scope
 
-Built so far: topic in, one text, quiz, slides or interactive unit out, the plan gate and adjustments, the comprehension check. Not built yet (later tickets): the diagnostic ladder, PDF sources and large-source ingest, other modes, the failure re-dispatch, hash-change archiving. Where a step below says "later", skip it and say nothing.
+Built so far: topic in, one text, quiz, slides or interactive unit out, the plan gate and adjustments, the comprehension check, PDF sources and large-source ingest. Not built yet (later tickets): the diagnostic ladder, other modes, the failure re-dispatch, hash-change archiving. Where a step below says "later", skip it and say nothing.
 
 ## Sequence
 

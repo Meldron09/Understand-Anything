@@ -1,0 +1,35 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pypdf==6.21.2"]
+# ///
+"""pdf-pages <pdf> <first>-<last> <out.pdf>
+
+Copy PDF pages (1-based, at most 3) into a small PDF so a skill can read them natively with
+`Read` (a whole short PDF needs no poppler, a `pages` read does) and so the cap of 3 native
+pages per unit is a fact about the file, not a promise. Exit 1 with a message on a bad range.
+"""
+import re, sys
+from pypdf import PdfReader, PdfWriter
+
+src, rng, out = sys.argv[1:4]
+m = re.fullmatch(r"(\d+)(?:-(\d+))?", rng) or sys.exit("range must be N or N-M")
+try:
+    r = PdfReader(src)
+    if r.is_encrypted:
+        r.decrypt("")
+    a = int(m.group(1))
+    b = int(m.group(2) or a)
+    if not (1 <= a <= b <= len(r.pages)):
+        sys.exit(f"pages {rng} outside 1-{len(r.pages)}")
+    if b - a + 1 > 3:
+        sys.exit("at most 3 pages")
+    w = PdfWriter()
+    for p in r.pages[a - 1:b]:
+        w.add_page(p)
+    w.write(out)
+except SystemExit:
+    raise
+except Exception as e:
+    sys.exit(f"cannot copy pages: {e}")
+print(f"{b - a + 1} pages")
