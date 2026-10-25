@@ -1,0 +1,27 @@
+#!/bin/sh
+# plan-unit set <plan.md> <unit> <status> [artifact]   record a unit's status (and artifact) in its block;
+#                                                      mode, size and every other line stay as written.
+# plan-unit report <plan.md>                           one line per degraded or failed unit, for the close:
+#                                                      `uN | mode | degraded: <reason> | <artifact>`; `none` if clean.
+# The conductor is plan.md's only writer; this is how it writes. POSIX sh + awk.
+cmd=$1 p=${2:?usage: plan-unit set <plan.md> <unit> <status> [artifact] | report <plan.md>}
+[ -f "$p" ] || { echo "plan-unit: no $p" >&2; exit 2; }
+case $cmd in
+  set)
+    u=${3:?unit} st=${4:?status}
+    grep -q "^## $u\$" "$p" || { echo "plan-unit: no unit $u in $p" >&2; exit 2; }
+    awk -v u="$u" -v st="$st" -v art="$5" '
+      /^## u[0-9]+$/ { inb = ($2 == u) }
+      inb && /^artifact:/ && art != "" { next }
+      inb && /^status:/ { print "status: " st; if (art != "") print "artifact: " art; next }
+      { print }' "$p" > "$p.tmp" && mv "$p.tmp" "$p" ;;
+  report)
+    awk '
+      function flush() { if (id != "" && (st ~ /^degraded/ || st ~ /^failed/)) { print id " | " mode " | " st " | " (art == "" ? "-" : art); n++ } }
+      /^## u[0-9]+$/ { flush(); id = $2; mode = st = art = ""; next }
+      id != "" && /^mode:/ { mode = $2 }
+      id != "" && /^status:/ { st = $0; sub(/^status:[ \t]*/, "", st) }
+      id != "" && /^artifact:/ { art = $2 }
+      END { flush(); if (!n) print "none" }' "$p" ;;
+  *) echo "usage: plan-unit set <plan.md> <unit> <status> [artifact] | report <plan.md>" >&2; exit 2 ;;
+esac

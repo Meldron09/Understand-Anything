@@ -28,6 +28,17 @@ A round is the next up-to-3 `pending` units in plan order (never more than 3 cal
 
 The footer is the last block of the result (format in the shared footer file): lines `status:`, `artifact:`, optional `reason:`, `notes:`. Take `status` (`done | degraded | failed`) and `artifact`. No `status:` line means a missing footer, treated as `failed` with reason `no footer`. If `status` is `done` but the artifact file does not exist, treat it as `failed` with reason `artifact missing`.
 
-## Size to words (for re-dispatch, later)
+## Text re-dispatch (step 7)
 
-Original size x the router's rate for the original mode gives minutes, then x 200 words per minute.
+Same brief shape as above with these changes: the skill is `learn-anything:text`, `artifact:` is `./learn-anything/<slug>/lesson/<unit-id>-text.md`, `work:` is the unit's work dir, `slices` and `focus` are copied unchanged from the unit's block, and two lines are added (the plan block keeps the original `size` and `mode`; the text skill must use these instead):
+
+```
+size: <output of degrade-words> words
+focus: <the unit's focus sentence>
+```
+
+Task: `Write a text explainer of the same slices and focus, not prose questions. ...` plus the usual tail. Never paste the failure's content; the reason goes to `plan.md` only.
+
+## Size to words
+
+`scripts/degrade-words "<size>"` does it: size x the router's rate for the original mode gives minutes (text 200 words/min, slides 1.5 min/slide, quiz 0.5 min/item, interactive 5 min/widget, video `size` in minutes), then x 200 words per minute. `2 min` = 400 words, `12 slides` = 3600 words, `10 items` = 1000 words.
