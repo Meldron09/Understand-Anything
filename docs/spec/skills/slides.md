@@ -20,9 +20,9 @@
 - The first slide states the brief's goal, the last is takeaways; both count toward `size`. The slide count equals the planned number exactly.
 - Math as `$...$` / `$$...$$`, diagrams as fenced `mermaid` in the deck source. No hand-drawn SVG in v1.
 
-## `marp.md` verify-at-build flags (not confirmed from the Marp Core README)
+## `marp.md` verify-at-build flags (verified in ticket 49 against marp-cli 4.5.1)
 
-Math on by default in the CLI; Mermaid on by default; KaTeX fonts working offline. If the render leaves math or Mermaid as raw source, the `.html` is still written and the footer says `math=raw` or `diagrams=raw`; this is not a degradation.
+Math is on by default (rendered by MathJax as inline SVG, so no KaTeX fonts are needed offline); Mermaid is not rendered by default, so a deck with a diagram ships `diagrams=raw`. If the render leaves math or Mermaid as raw source, the `.html` is still written and the footer says `math=raw` or `diagrams=raw`; this is not a degradation.
 
 ## Footer notes
 

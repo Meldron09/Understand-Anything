@@ -42,11 +42,11 @@ Work from the deck's folder; the output sits beside it as `uN-slides.html` / `uN
 
 A failed or missing render is `done` with `rendered=none`, never `degraded` or `failed`. Retry at most once; never install anything.
 
-## Verify at build (not confirmed from the Marp Core README)
+## Verified at build (marp-cli 4.5.1, `npx`, HTML only, offline output)
 
-Three flags: math on by default in the CLI, Mermaid on by default, KaTeX fonts working offline. After a render, check the HTML:
+Math is on by default and rendered by MathJax as inline SVG (`mjx-container`, no KaTeX, no fonts to fetch). Mermaid is **not** rendered by default: the fence stays `language-mermaid`, so expect `diagrams=raw` for any deck with a diagram. After a render, check the HTML:
 
-- the deck holds `$` math but the HTML has no `katex` class: footer `math=raw`;
+- the deck holds `$` math but the HTML has neither `mjx-container` nor a `katex` class: footer `math=raw`;
 - the deck holds a `mermaid` fence and the HTML still has `language-mermaid`: footer `diagrams=raw`.
 
 The `.html` still ships. These are footer notes only, not a degradation, and the conductor does not surface them.

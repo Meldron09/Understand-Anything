@@ -45,11 +45,11 @@ mkdir -p "$d/sources/s1" "$d/sources/s2"
 printf -- '---\nstatus: ok\nlinks: [https://a.example/x, https://b.example/y]\n---\n' > "$d/sources/s1/index.md"
 printf -- '---\nstatus: failed\nlinks: []\n---\n' > "$d/sources/s2/index.md"
 o=$("$pg" "$d")
-t "download sums the tiers plus the missing kokoro weights" has "$o" 'download=~480 MB'
-t "consent line names the download and the kokoro share" has "$o" '^consent: video downloads ~480 MB (includes ~300 MB of kokoro voice weights)'
+t "download sums the tiers plus the missing kokoro weights" has "$o" 'download=~530 MB'
+t "consent line names the download and the kokoro share" has "$o" '^consent: video downloads ~530 MB (includes ~350 MB of kokoro voice weights)'
 t "consent line names the macOS frame-spill risk" has "$o" 'macOS frame-spill risk: .*25 GB of raw frames per minute'
 mkdir -p "$tmp/data/kokoro"; echo x > "$tmp/data/kokoro/kokoro-v1.0.onnx"
-t "one weights file only: still counted" has "$("$pg" "$d" --data-dir "$tmp/data")" 'download=~480 MB'
+t "one weights file only: still counted" has "$("$pg" "$d" --data-dir "$tmp/data")" 'download=~530 MB'
 echo x > "$tmp/data/kokoro/voices-v1.0.bin"
 o2=$("$pg" "$d" --data-dir "$tmp/data")
 t "kokoro already downloaded: not counted" has "$o2" 'download=~180 MB'

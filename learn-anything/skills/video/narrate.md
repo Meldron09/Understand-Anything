@@ -19,7 +19,7 @@ One voice for the whole lesson, whatever the engine.
 
 | Engine | When | How |
 |---|---|---|
-| `kokoro` | `uv` found and the run succeeds | `kokoro.py`, one `uv` process for every scene (the model loads once), voice `af_bella`, weights fetched once into `<data>/kokoro/` (about 300 MB; the plan gate's consent covers it) |
+| `kokoro` | `uv` found and the run succeeds | `kokoro.py`, one `uv` process for every scene (the model loads once), voice `af_bella`, weights fetched once into `<data>/kokoro/` (about 350 MB; the plan gate's consent covers it) |
 | `say` | kokoro absent or failed, and `say`, `ffmpeg` and `ffprobe` found | every scene re-synthesised (never a mix), voice `Samantha`, converted to wav, measured with `ffprobe` |
 | `none` | no voice at all | no audio; durations estimated at 2.5 words per second; assembly writes a narration script beside the mp4 |
 
@@ -40,4 +40,4 @@ The script prints `engine=<name>` and, for anything but kokoro, a `degraded: <re
 
 ## Length check
 
-The sum of D must be within 25% of the unit's `size` in seconds: `sh $S/plan check "<size>" work/timing.json`. Outside it, rewrite the narration of every scene toward the target (about 2.5 words per second) and narrate once more. A second miss is accepted as is; never loop. Unknowns pending a Mac spike: the kokoro release URLs, real-time factor and download size.
+The sum of D must be within 25% of the unit's `size` in seconds: `sh $S/plan check "<size>" work/timing.json`. Outside it, rewrite the narration of every scene toward the target (about 2.5 words per second) and narrate once more. A second miss is accepted as is; never loop. Checked (ticket 49): both release URLs resolve (together about 354 MB, hence the consent's ~350 MB) and `kokoro-onnx==0.6.1` exists on PyPI. Unknowns pending a Mac spike: the `Kokoro(...).create(...)` call shape, real-time factor.
