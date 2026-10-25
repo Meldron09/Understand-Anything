@@ -8,8 +8,7 @@ dw=$pl/scripts/degrade-words
 pu=$pl/scripts/plan-unit
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
-eq() { [ "$1" = "$2" ]; }
+. "$here/../lib.sh"
 block() { sed -n "/^## $2\$/,/^\$/p" "$1"; }   # one unit's block
 
 # AC1: size conversion matches the spec examples; the other modes follow the router's rates

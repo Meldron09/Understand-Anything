@@ -7,10 +7,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 rc=$here/../../learn-anything/scripts/resume-check
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
+. "$here/../lib.sh"
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
 last() { printf '%s\n' "$1" | tail -n 1; }
-has() { printf '%s\n' "$1" | grep -q -- "$2"; }
 key() { sed -n '2,/^---$/p' "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -n 1; }
 
 # mk <name>: cd into a scratch cwd holding lesson lsn with a local-file source s1 and a topic source s2;

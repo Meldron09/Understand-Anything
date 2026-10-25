@@ -16,9 +16,7 @@ pl=$here/../../learn-anything
 vs=$pl/skills/video/scripts
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
-eq() { [ "$1" = "$2" ]; }
-has() { printf '%s\n' "$1" | grep -q -- "$2"; }
+. "$here/../lib.sh"
 lacks() { ! printf '%s\n' "$1" | grep -q -- "$2"; }
 code() { # code <want> <cmd...>: run quietly, compare exit status
   want=$1; shift; "$@" >/dev/null 2>&1; [ $? -eq "$want" ]; }

@@ -9,9 +9,7 @@ pg=$pl/scripts/plan-gate
 pu=$pl/scripts/plan-unit
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fails=0
-t() { desc=$1; shift; if "$@"; then echo "ok   $desc"; else echo "FAIL $desc"; fails=$((fails + 1)); fi; }
-has() { printf '%s\n' "$1" | grep -q -- "$2"; }
-eq() { [ "$1" = "$2" ]; }
+. "$here/../lib.sh"
 
 # mkplan <name> <budget> <mode>...: a lesson dir whose plan.md is built from plan-size's lines
 mkplan() {
