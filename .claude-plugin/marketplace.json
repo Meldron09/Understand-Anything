@@ -1,0 +1,12 @@
+{
+  "name": "learn-anything-marketplace",
+  "owner": { "name": "Meldron Almeida" },
+  "metadata": { "description": "The learn-anything Claude Code plugin: learn any concept from your own sources, free and local." },
+  "plugins": [
+    {
+      "name": "learn-anything",
+      "source": "./learn-anything",
+      "description": "Interviews you, ingests your sources, plans a lesson sized to your time, produces it as text, slides, interactive HTML, quiz or narrated video, and checks what you learned. Free and local."
+    }
+  ]
+}

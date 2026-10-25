@@ -37,4 +37,4 @@ Fit; install and probes (printed commands, pinned version); headless flag (yes /
 
 ## Untested defaults (retune after a Mac spike)
 
-20 s scenes, the blank-scene threshold, render times, scene parallelism.
+20 s scenes, the blank-scene threshold, render times, scene parallelism: still untested (ticket 49 could not measure them here; the runbook is [mac-spike.md](../mac-spike.md)).

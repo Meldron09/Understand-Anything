@@ -2,7 +2,7 @@
 # plan-gate <lesson-dir> [--data-dir <dir>]: print the plan gate (one line per unit, totals, failed sources, outbound
 # links) and the verdict from plan.md. POSIX sh + awk. Last line: `gate: skip|show|refuse ...`.
 # Exit 0 always except no plan (2). Download size is the sum of preflight.md's missing pieces
-# tagged (tier K) with K at most the plan's highest tier, plus the kokoro voice weights (~300 MB) when a video
+# tagged (tier K) with K at most the plan's highest tier, plus the kokoro voice weights (~350 MB) when a video
 # unit is planned and <dir>/kokoro lacks them (no --data-dir: assumed missing): approximate, for the consent
 # prompt. A `consent:` line follows for video plans, naming the download and, for HyperFrames, the macOS
 # frame-spill risk.
@@ -44,7 +44,7 @@ fi
 
 kokoro=0
 if [ "$vm" -gt 0 ] && ! { [ -s "${data:-/nonexistent}/kokoro/kokoro-v1.0.onnx" ] && [ -s "$data/kokoro/voices-v1.0.bin" ]; }; then
-  kokoro=300; dl=$((dl + kokoro))
+  kokoro=350; dl=$((dl + kokoro))
 fi
 
 failed=""; links=""

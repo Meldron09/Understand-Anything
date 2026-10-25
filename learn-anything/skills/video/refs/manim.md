@@ -57,4 +57,4 @@ UV_CACHE_DIR=<data>/uv uv run --python 3.12 --with "manim[typst]==0.22.0" manim 
 
 ## Unknowns pending a Mac spike
 
-Sandbox behaviour, real render time per minute of output, the `manim[typst]` extra name at this pin, the output folder layout under `--media_dir`, parallel scene jobs sharing one `uv` cache.
+Checked on PyPI (ticket 49): `manim` 0.22.0 exists and declares a `typst` extra; an actual render is still unrun. Sandbox behaviour, real render time per minute of output, the output folder layout under `--media_dir`, parallel scene jobs sharing one `uv` cache.

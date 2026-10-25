@@ -8,7 +8,7 @@
 Narrate every <work>/narration/sNN.txt in this ONE process (the model loads once) into
 <work>/audio/sNN.wav and write <work>/timing.json (same format as `plan timing`). Model files
 are fetched once into <data-dir>/kokoro/ (consent at the plan gate). Exit 1 on any failure so
-`narrate` falls back to `say`. Unverified until a Mac spike: release URLs and the Kokoro API.
+`narrate` falls back to `say`. Release URLs verified (ticket 49); the Kokoro API call shape is unverified until a Mac spike.
 """
 import argparse, json, urllib.request, wave
 from pathlib import Path
