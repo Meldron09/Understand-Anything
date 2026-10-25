@@ -1,0 +1,25 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # the claude CLI is installed from npm; `plugin validate` reads manifests only (no login, no model call)
+      - run: npm install -g @anthropic-ai/claude-code
+      - run: sh learn-anything/scripts/lint-skills learn-anything
+      - run: claude plugin validate --strict learn-anything
+      - run: claude plugin validate --strict .
+      # deterministic suites only: tests/{check,interactive,quiz,slides,tracer} and tests/ingest/e2e*.sh call `claude`
+      - run: |
+          for t in lint-skills preflight plan-gate verify-html ingest resume degrade video router; do
+            echo "== $t"
+            sh tests/$t/run.sh || exit 1
+          done

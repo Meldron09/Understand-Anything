@@ -1,0 +1,60 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["trafilatura==2.3.1", "readability-lxml==0.9", "markdownify==1.2.3", "lxml_html_clean"]
+# ///
+"""fetch-url <html-file> <page-url> <out.md>: convert one saved HTML page to Markdown.
+
+Strips line-number anchors from code blocks, extracts the main content with trafilatura
+(fallback readability-lxml + markdownify), writes <out.md> (and <out.md>.links, one outbound link per line) and prints one JSON line
+{"status": "ok"|"failed", "chars": n, "links": [...]}. Exit 0 ok, 3 failed (under MIN chars).
+"""
+import json, re, sys
+from urllib.parse import urlparse
+
+MIN = 250  # JS shells do not reliably come back empty, so a minimum length is the failure test
+
+
+def strip_line_anchors(html):
+    # mkdocs-material and similar put an empty <a id="__codelineno-..."> at each code line start;
+    # trafilatura then drops the whole block. Remove empty anchors inside <pre>.
+    def fix(m):
+        return re.sub(r"<a\b[^>]*>\s*</a>", "", m.group(0), flags=re.I)
+    return re.sub(r"<pre\b.*?</pre>", fix, html, flags=re.I | re.S)
+
+
+def convert(html, url):
+    import trafilatura
+    md = trafilatura.extract(html, url=url, output_format="markdown", include_links=True,
+                             include_tables=True, include_images=False) or ""
+    if len(md) >= MIN:
+        return md
+    try:  # ponytail: fallback loses headings on some sites; only used when trafilatura is short
+        from readability import Document
+        from markdownify import markdownify
+        alt = markdownify(Document(html).summary(), heading_style="ATX")
+        return alt if len(alt.strip()) > len(md) else md
+    except Exception:
+        return md
+
+
+def main(src, url, out):
+    html = open(src, encoding="utf-8", errors="replace").read()
+    md = convert(strip_line_anchors(html), url).strip()
+    host = urlparse(url).netloc
+    links = []
+    for l in re.findall(r"\]\((https?://[^)\s]+)\)", md):
+        if urlparse(l).netloc != host and l not in links:
+            links.append(l)
+    ok = len(md) >= MIN
+    if ok:
+        open(out, "w", encoding="utf-8").write(md + "\n")
+        open(out + ".links", "w").write("\n".join(links[:30]) + "\n")
+    print(json.dumps({"status": "ok" if ok else "failed", "chars": len(md), "links": links[:30]}))
+    return 0 if ok else 3
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        sys.exit(__doc__)
+    sys.exit(main(*sys.argv[1:]))

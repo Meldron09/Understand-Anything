@@ -1,0 +1,98 @@
+#!/bin/sh
+# Deterministic sizing and bookkeeping for the video skill (docs/spec/skills/video.md). POSIX sh + awk.
+#   plan scenes <size>            scene count = round(seconds / 20), min 2, max 15 (size: seconds or `N min`)
+#   plan jobs                     scene jobs at once = min(2, cores / 4), at least 1
+#   plan storyboard <sb> <size>   check the storyboard: scene count, ids s01.., every scene has narration
+#   plan narration <sb> <work>    write <work>/narration/sNN.txt from the storyboard
+#   plan check <size> <timing>    narrated total within 25% of size: `ok ...` (0) or `resync ...` (1)
+#   plan estimate <work>          timing.json from word counts at 2.5 words per second (voice none)
+#   plan timing <voice> <speaker>  stdin `id seconds` lines to timing.json on stdout
+#   plan bake <timing> <scenes>   write each measured duration into its scene script's `DURATION = ` line (and
+#                                 any `data-duration=".."` attribute of an .html scene)
+#   plan gate [manim|hyperframes] [lesson-dir]
+#                                 tool check via scripts/preflight (default manim; with a lesson dir it also rewrites
+#                                 <lesson-dir>/preflight.md): `failed: <why>` (1) or `ok`,
+#                                 `captions=soft|sidecar` and `fallback=manim|none` (the picked renderer's fallback is usable)
+# storyboard.md: per scene `## sNN`, then `idea:`, `visual:` and `narration:` (may run over several lines).
+here=$(cd "$(dirname "$0")" && pwd)
+cmd=${1:-}; [ $# -eq 0 ] || shift
+usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+
+secs() { awk -v s="$1" 'BEGIN { if (s ~ /min/) s = s * 60; printf "%d\n", s + 0.5 }'; }
+pairs() { sed -n 's/.*"id":"\(s[0-9][0-9]*\)","seconds":\([0-9.][0-9.]*\).*/\1 \2/p' "$1"; }
+
+case $cmd in
+  scenes)
+    awk -v s="$(secs "${1:?size}")" 'BEGIN { n = int(s / 20 + 0.5); if (n < 2) n = 2; if (n > 15) n = 15; print n }' ;;
+  jobs)
+    cores=$( (nproc || sysctl -n hw.ncpu) 2>/dev/null | head -n 1)
+    case $cores in ''|*[!0-9]*) cores=1;; esac
+    j=$((cores / 4)); [ "$j" -ge 1 ] || j=1; [ "$j" -le 2 ] || j=2
+    echo "$j" ;;
+  narration)
+    sb=${1:?storyboard} w=${2:?work}
+    mkdir -p "$w/narration" && rm -f "$w"/narration/s*.txt
+    awk -v dir="$w/narration" '
+      function close_scene() { if (id != "") { f = dir "/" id ".txt"; print txt > f; close(f) } }
+      /^## s[0-9][0-9]+[ \t]*$/ { close_scene(); id = $2; txt = ""; on = 0; next }
+      id != "" && /^narration:/ { on = 1; sub(/^narration:[ \t]*/, ""); txt = $0; next }
+      id != "" && on && /^(idea|visual):/ { on = 0 }
+      id != "" && on && NF { txt = txt " " $0 }
+      END { close_scene() }' "$sb" ;;
+  storyboard)
+    sb=${1:?storyboard} want=$(sh "$0" scenes "${2:?size}")
+    ids=$(grep -c '^## s[0-9][0-9]*[ 	]*$' "$sb")
+    tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+    sh "$0" narration "$sb" "$tmp"
+    rc=0
+    [ "$ids" -eq "$want" ] || { echo "storyboard: $ids scenes, want $want"; rc=1; }
+    i=0
+    for id in $(grep '^## s[0-9]' "$sb" | sed 's/^## //'); do
+      i=$((i + 1)); [ "$id" = "$(printf 's%02d' "$i")" ] || { echo "storyboard: scene $i is $id, want s$(printf '%02d' "$i")"; rc=1; }
+      [ -n "$(tr -d ' \n' < "$tmp/narration/$id.txt" 2>/dev/null)" ] || { echo "storyboard: $id has no narration"; rc=1; }
+    done
+    [ "$rc" -ne 0 ] || echo "scenes=$ids"
+    exit "$rc" ;;
+  check)
+    size=$(secs "${1:?size}"); t=${2:?timing.json}
+    pairs "$t" | awk -v size="$size" '
+      { total += $2 }
+      END { d = total - size; if (d < 0) d = -d
+            if (size > 0 && d / size <= 0.25) { printf "ok total=%.1f size=%d\n", total, size; exit 0 }
+            printf "resync total=%.1f size=%d (outside 25%%)\n", total, size; exit 1 }' ;;
+  timing)
+    awk -v e="${1:?voice}" -v v="${2:?speaker}" '
+      BEGIN { printf "{\"voice\":\"%s\",\"speaker\":\"%s\",\"scenes\":[\n", e, v }
+      { printf "%s{\"id\":\"%s\",\"seconds\":%.2f}", (n++ ? ",\n" : ""), $1, $2 }
+      END { print "\n]}" }' ;;
+  estimate)
+    w=${1:?work}
+    for f in "$w"/narration/s*.txt; do
+      awk -v id="$(basename "$f" .txt)" '{ n += NF } END { printf "%s %.2f\n", id, n / 2.5 }' "$f"
+    done | sh "$0" timing none none > "$w/timing.json" ;;
+  bake)
+    t=${1:?timing.json} dir=${2:?scenes dir}
+    pairs "$t" | while read -r id sec; do
+      for f in "$dir/$id".*; do
+        [ -f "$f" ] || continue
+        grep -q '^DURATION = ' "$f" || { echo "bake: no 'DURATION = ' line in $f"; exit 1; }
+        sed -e "s/^DURATION = .*/DURATION = $sec/" -e "s/data-duration=\"[0-9.]*\"/data-duration=\"$sec\"/" "$f" > "$f.tmp" && mv "$f.tmp" "$f" && echo "baked $id=$sec"
+      done
+    done ;;
+  gate)
+    pre=$(sh "$here/../../../scripts/preflight" ${2:+"$2"}) || pre=
+    flag() { printf '%s' "$pre" | grep -q "\"$1\":true"; }
+    flag ffmpeg || { echo "failed: ffmpeg missing, the unit goes to text"; exit 1; }
+    miss=""
+    case ${1:-manim} in
+      hyperframes) flag node22 || miss="$miss node22"; flag chromium || miss="$miss chromium"
+        [ -z "$miss" ] || { echo "failed: hyperframes needs$miss"; exit 1; } ;;
+      *) flag uv || miss="$miss uv"; flag cairo || miss="$miss cairo"; flag pkg_config || miss="$miss pkg-config"
+        [ -z "$miss" ] || { echo "failed: manim needs$miss"; exit 1; } ;;
+    esac
+    echo ok
+    if flag ffmpeg_subtitles; then echo captions=soft; else echo captions=sidecar; fi
+    # the fallback is manim (tier 2) behind hyperframes; manim rows have none
+    if [ "${1:-manim}" = hyperframes ] && flag uv && flag cairo && flag pkg_config; then echo fallback=manim; else echo fallback=none; fi ;;
+  *) usage ;;
+esac

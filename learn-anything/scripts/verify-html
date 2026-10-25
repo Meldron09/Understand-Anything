@@ -1,0 +1,43 @@
+#!/bin/sh
+# verify-html <file.html> [preflight.md]: tier-0 checks for a self-contained HTML lesson artifact
+# (docs/spec/shared.md). Prints one line per violation; exit 1 on any. POSIX sh.
+# Rules: no http(s) URL in src/href/url(), balanced <script> tags, every getElementById target
+# exists, and the runtime's data-ready marker is in the source. If preflight.md has the line
+# `- headless chromium: true` (what scripts/preflight writes), also finds Chrome (app bundles per
+# PREFLIGHT_CHROME_APPS, else PATH), dumps the DOM and requires data-ready on <body>; otherwise the caller adds `not browser-tested` to the footer notes.
+f=${1:?usage: verify-html <file.html> [preflight.md]}
+[ -f "$f" ] || { echo "$f: no such file"; exit 1; }
+rc=0
+fail() { printf '%s: %s\n' "$f" "$1"; rc=1; }
+
+grep -Eiq "(src|href)[[:space:]]*=[[:space:]]*[\"']?https?://|url\([[:space:]]*[\"']?https?://" "$f" \
+  && fail "external URL (src, href or url() must not use http:// or https://)"
+
+open=$(grep -oi '<script' "$f" | wc -l | tr -d ' ')
+close=$(grep -oi '</script>' "$f" | wc -l | tr -d ' ')
+[ "$open" -eq "$close" ] || fail "unbalanced script tags ($open open, $close close)"
+
+for id in $(grep -o "getElementById([\"'][^\"']*[\"'])" "$f" | sed "s/getElementById([\"']//; s/[\"'])\$//" | sort -u); do
+  grep -Eq "id[[:space:]]*=[[:space:]]*[\"']$id[\"']" "$f" || fail "getElementById target missing: $id"
+done
+
+grep -q 'data-ready' "$f" || fail "ready marker missing (runtime must set data-ready)"
+
+if [ "$rc" -eq 0 ] && [ -n "$2" ] && [ -f "$2" ]; then
+  chrome=
+  if grep -q '^- headless chromium: true' "$2"; then
+    apps=${PREFLIGHT_CHROME_APPS-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome:/Applications/Chromium.app/Contents/MacOS/Chromium"}
+    oldifs=$IFS; IFS=:
+    for a in $apps; do [ -z "$chrome" ] && [ -x "$a" ] && chrome=$a; done
+    IFS=$oldifs
+    for c in google-chrome google-chrome-stable chromium chromium-browser chrome; do
+      [ -z "$chrome" ] && command -v "$c" >/dev/null 2>&1 && chrome=$c
+    done
+  fi
+  if [ -n "$chrome" ]; then
+    abs=$(cd "$(dirname "$f")" && pwd)/$(basename "$f")
+    "$chrome" --headless --disable-gpu --dump-dom "file://$abs" 2>/dev/null | grep -q '<body[^>]*data-ready' \
+      || fail "browser: data-ready not set on <body> after load"
+  fi
+fi
+exit "$rc"

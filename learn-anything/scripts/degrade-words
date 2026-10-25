@@ -1,0 +1,15 @@
+#!/bin/sh
+# degrade-words "<size>": convert a unit's size to the words of its text re-dispatch, preserving the
+# time budget (docs/spec/skills/learn.md step 8): minutes = size x the router's rate, words = minutes x 200.
+# Sizes: `N words` | `N min` (video) | `N slides` (1.5 min each) | `N items` (0.5) | `N widgets` (5).
+# Prints `<words> words`. Exit 2 on an unknown size. POSIX sh + awk.
+awk -v s="$1" 'BEGIN {
+  n = s + 0; u = s; sub(/^[ \t]*[0-9.]+[ \t]*/, "", u)
+  if (u == "words") w = n
+  else if (u == "min" || u == "minutes") w = n * 200
+  else if (u == "slides") w = n * 1.5 * 200
+  else if (u == "items") w = n * 0.5 * 200
+  else if (u == "widgets") w = n * 5 * 200
+  else { print "degrade-words: unknown size \"" s "\"" > "/dev/stderr"; exit 2 }
+  printf "%d words\n", w + 0.5
+}'

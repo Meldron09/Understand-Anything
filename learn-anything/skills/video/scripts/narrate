@@ -1,0 +1,47 @@
+#!/bin/sh
+# narrate <storyboard.md> <work-dir> --data-dir <dir>: narrate every scene with ONE voice and measure it.
+# Writes <work>/narration/sNN.txt, <work>/audio/sNN.wav and <work>/timing.json, then prints
+# `voice=kokoro|say|none` (plus a `degraded: <reason>` line when it is not kokoro).
+# Chain: kokoro-onnx in one uv process, else `say` for ALL scenes (one voice), else none (no audio,
+# durations estimated at 2.5 words per second). Re-run after editing narration to re-synthesise.
+here=$(cd "$(dirname "$0")" && pwd)
+sb=${1:?usage: narrate <storyboard.md> <work-dir> --data-dir <dir>} w=${2:?work-dir}; shift 2
+data=.
+while [ $# -gt 0 ]; do case $1 in --data-dir) data=$2; shift 2;; *) shift;; esac; done
+have() { command -v "$1" >/dev/null 2>&1; }
+reset() { rm -rf "$w/audio" "$w/timing.json"; mkdir -p "$w/audio"; }
+
+sh "$here/plan" narration "$sb" "$w" || exit 1
+reset
+if have uv; then
+  if uv run --script "$here/kokoro.py" "$w" --data-dir "$data" >&2 && [ -s "$w/timing.json" ]; then
+    echo "voice=kokoro"; exit 0
+  fi
+  why="kokoro failed"
+else
+  why="uv not found"
+fi
+
+reset
+if have say && have ffmpeg && have ffprobe; then
+  : > "$w/audio/durations"; ok=1
+  for t in "$w"/narration/s*.txt; do
+    id=$(basename "$t" .txt)
+    say -v Samantha -o "$w/audio/$id.aiff" -f "$t" &&
+      ffmpeg -y -loglevel error -i "$w/audio/$id.aiff" "$w/audio/$id.wav" &&
+      d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$w/audio/$id.wav") &&
+      echo "$id $d" >> "$w/audio/durations" || { ok=0; break; }
+  done
+  if [ "$ok" -eq 1 ]; then
+    sh "$here/plan" timing say Samantha < "$w/audio/durations" > "$w/timing.json"
+    echo "voice=say"; echo "degraded: $why, narrated with say"; exit 0
+  fi
+  why="$why, say failed"
+else
+  why="$why, say unavailable"
+fi
+
+reset
+sh "$here/plan" estimate "$w"
+echo "voice=none"
+echo "degraded: no narration voice ($why), silent video with estimated durations and a narration script"

@@ -1,0 +1,97 @@
+
+</script>
+<script>
+(function () {
+  var items = JSON.parse(document.getElementById('items').textContent);
+  var grades = {}; // item id -> solid | shaky | missed
+  var pos = 0;
+  var itemEl = document.getElementById('item');
+  var ctl = document.getElementById('controls');
+
+  function el(tag, text, cls) {
+    var e = document.createElement(tag);
+    if (text !== undefined) e.textContent = text;
+    if (cls) e.className = cls;
+    return e;
+  }
+  function rateButtons() {
+    var row = el('div');
+    ['solid', 'shaky', 'missed'].forEach(function (g) {
+      var b = el('button', g);
+      b.onclick = function () { grades[items[pos].id] = g; pos++; show(); };
+      row.appendChild(b);
+    });
+    return row;
+  }
+  function show() {
+    itemEl.textContent = ''; ctl.textContent = '';
+    if (pos >= items.length) return summary();
+    var it = items[pos];
+    document.getElementById('progress').textContent = 'Item ' + (pos + 1) + ' of ' + items.length;
+    if (it.type === 'mcq') {
+      itemEl.appendChild(el('div', it.q, 'q'));
+      it.choices.forEach(function (c) {
+        var b = el('button', c.text);
+        b.onclick = function () {
+          Array.prototype.forEach.call(ctl.querySelectorAll('button'), function (x, i) {
+            x.disabled = true;
+            if (it.choices[i].correct) x.className = 'ok';
+          });
+          if (!c.correct) b.className = 'no';
+          grades[it.id] = c.correct ? 'solid' : 'missed';
+          var next = el('button', pos + 1 < items.length ? 'Next' : 'Finish');
+          next.onclick = function () { pos++; show(); };
+          itemEl.appendChild(el('div', it.answer, 'ans'));
+          itemEl.appendChild(next);
+        };
+        ctl.appendChild(b);
+      });
+    } else if (it.type === 'flip') {
+      var card = el('div', it.q, 'card');
+      var flipped = false;
+      card.onclick = function () {
+        if (flipped) return;
+        flipped = true;
+        card.textContent = it.answer;
+        ctl.appendChild(el('p', 'How well did you know it?', 'meta'));
+        ctl.appendChild(rateButtons());
+      };
+      itemEl.appendChild(card);
+      itemEl.appendChild(el('p', 'Click the card to flip it.', 'meta'));
+    } else { // short, explain: type, reveal, self-rate
+      itemEl.appendChild(el('div', it.q, 'q'));
+      var ta = el('textarea');
+      var reveal = el('button', 'Show answer');
+      reveal.onclick = function () {
+        reveal.disabled = true; ta.disabled = true;
+        ctl.appendChild(el('div', it.answer, 'ans'));
+        ctl.appendChild(el('p', 'How well did you know it?', 'meta'));
+        ctl.appendChild(rateButtons());
+      };
+      itemEl.appendChild(ta);
+      ctl.appendChild(reveal);
+    }
+  }
+  function summary() {
+    document.getElementById('progress').textContent = 'Done';
+    var score = { solid: 1, shaky: 0.5, missed: 0 }, by = {};
+    items.forEach(function (it) { (by[it.concept] = by[it.concept] || []).push(score[grades[it.id]] || 0); });
+    var host = document.getElementById('summary');
+    host.className = '';
+    host.appendChild(el('h2', 'Where you stand'));
+    var t = el('table');
+    Object.keys(by).forEach(function (c) {
+      var m = by[c].reduce(function (a, b) { return a + b; }, 0) / by[c].length;
+      var tr = el('tr');
+      tr.appendChild(el('td', c));
+      tr.appendChild(el('td', m >= 0.75 ? 'solid' : m >= 0.4 ? 'shaky' : 'missed'));
+      t.appendChild(tr);
+    });
+    host.appendChild(t);
+  }
+  show();
+  document.body.setAttribute('data-ready', '1');
+})();
+</script>
+</body>
+</html>
